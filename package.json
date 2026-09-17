@@ -1,0 +1,37 @@
+{
+  "name": "openport",
+  "private": true,
+  "version": "0.3.0",
+  "description": "Portable agent memory over MCP: the same scoped context, skills, and session handoffs across every LLM client.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "wrangler dev --config platforms/cloudflare/wrangler.toml --port 8788",
+    "local": "tsx platforms/local/server.ts",
+    "local:stdio": "tsx platforms/local/stdio.ts",
+    "local:seed": "tsx platforms/local/seed-cli.ts",
+    "local:export": "tsx platforms/local/export-cli.ts",
+    "local:import": "tsx platforms/local/import-cli.ts",
+    "deploy": "wrangler deploy --config platforms/cloudflare/wrangler.toml",
+    "db:create": "wrangler d1 create openport --config platforms/cloudflare/wrangler.toml",
+    "db:migrate": "wrangler d1 execute openport --remote --config platforms/cloudflare/wrangler.toml --file=./schema.sql",
+    "db:migrate:local": "wrangler d1 execute openport --local --config platforms/cloudflare/wrangler.toml --file=./schema.sql",
+    "db:seed": "tsx platforms/cloudflare/scripts/seed-all.ts",
+    "test": "tsx --test src/*.test.ts platforms/local/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260815.1",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "wrangler": "^4"
+  }
+}
