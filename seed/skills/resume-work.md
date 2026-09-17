@@ -21,7 +21,16 @@ update_context({
 })
 ```
 
-Use `session_note` alone (empty durable change) when only the handoff matters: pass a no-op append or update the local scope with a tiny clarification.
+Use `session_note` alone when only the handoff matters — empty `context` is allowed and does not change the durable body:
+
+```text
+update_context({
+  scope: "desk",
+  context: "",
+  mode: "append",
+  session_note: "new: …what the next client needs…"
+})
+```
 
 ## Do not
 

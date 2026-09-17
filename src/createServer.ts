@@ -71,7 +71,7 @@ export function createOpenPortServer(options: CreateOpenPortServerOptions): McpS
     "get_context",
     {
       description:
-        "Load memory. CONTRACT: pass scopes= (must-load auto-included + at most one local). Bare call errors — full dump is not allowed.",
+        "REQUIRED at session start before answering from memory. Load by scopes= (must-load auto-included + at most one local). Prefer include_session: true. Bare call errors — full dump is not allowed.",
       inputSchema: z.object({
         scope: z
           .string()
@@ -80,11 +80,11 @@ export function createOpenPortServer(options: CreateOpenPortServerOptions): McpS
         scopes: z
           .array(z.string())
           .optional()
-          .describe("Scope ids to load (e.g. [_important, _protected, my-project]). Must-load always merged in."),
+          .describe("Scope ids to load (e.g. [_important, _protected, desk]). Must-load always merged in."),
         include_session: z
           .boolean()
           .optional()
-          .describe("Also include _session (default false)."),
+          .describe("Also include _session handoffs (recommended true at session start)."),
         include_global: z
           .boolean()
           .optional()
@@ -108,7 +108,8 @@ export function createOpenPortServer(options: CreateOpenPortServerOptions): McpS
   server.registerTool(
     "learn_workflow",
     {
-      description: "Bind a skill (how-to) for this session.",
+      description:
+        "Bind a skill (how-to) for this session. Call after get_context at session start — day one: resume-work.",
       inputSchema: z.object({
         skill: z.string().describe("Skill id stored via update_skill"),
         local: z.string().optional().describe("Optional local context id for this run"),
@@ -217,10 +218,86 @@ export function createOpenPortServer(options: CreateOpenPortServerOptions): McpS
     },
   )
 
+  server.registerPrompt(
+    "resume",
+    {
+      title: "Resume work",
+      description: "Session-start contract: load scoped memory, bind resume-work, continue from handoff.",
+      argsSchema: {
+        local: z
+          .string()
+          .optional()
+          .describe("Local scope id (default desk)"),
+      },
+    },
+    ({ local }) => {
+      const id = local?.trim() || "desk"
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text: `OpenPort session start. Call tools before answering from memory:
+
+1. get_context({ scopes: ["_important", "_protected", "${id}"], include_session: true })
+2. learn_workflow({ skill: "resume-work" })
+3. Continue from prefs / open threads / latest _session handoff
+4. Before you stop, leave session_note: "new: …" via update_context`,
+            },
+          },
+        ],
+      }
+    },
+  )
+
+  server.registerPrompt(
+    "handoff",
+    {
+      title: "Save handoff",
+      description: "Session-end contract: write a session_note for the next client.",
+      argsSchema: {
+        local: z
+          .string()
+          .optional()
+          .describe("Local scope id (default desk)"),
+        note: z
+          .string()
+          .optional()
+          .describe("Handoff text (without new: prefix)"),
+      },
+    },
+    ({ local, note }) => {
+      const id = local?.trim() || "desk"
+      const body = note?.trim() || "<what the next client needs>"
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text: `OpenPort session end. Save continuity before stopping:
+
+update_context({
+  scope: "${id}",
+  context: "",
+  mode: "append",
+  session_note: "new: ${body}"
+})
+
+Empty context + session_note is handoff-only (no durable body change). If prefs/decisions changed, put those in context instead.`,
+            },
+          },
+        ],
+      }
+    },
+  )
+
   server.registerTool(
     "update_context",
     {
-      description: "Write memory. Pass session_note for this work session’s handoff (next client).",
+      description:
+        "REQUIRED before you stop or switch clients when the next chat needs continuity. Write durable memory; pass session_note (prefer new: …) for the handoff.",
       inputSchema: z.object({
         scope: z.string(),
         context: z.string(),
@@ -230,52 +307,68 @@ export function createOpenPortServer(options: CreateOpenPortServerOptions): McpS
     },
     async ({ scope, context, mode, session_note }) => {
       const id = scope.trim()
-      const guarded =
-        id === GLOBAL_CONTEXT_ID ||
-        id === IMPORTANT_CONTEXT_ID ||
-        id === PROTECTED_CONTEXT_ID
-      if (guarded) {
-        const defaults: Record<string, string> = {
-          [GLOBAL_CONTEXT_ID]: "# Global\n",
-          [IMPORTANT_CONTEXT_ID]: "# Important\n",
-          [PROTECTED_CONTEXT_ID]: "# Protected\n",
-        }
-        if (mode === "append") {
-          const prev = (await store.getContextRow(id))?.body ?? defaults[id]
-          const merged = `${prev.trimEnd()}\n\n${context.trim()}\n`
-          const v = validateGuardedScope(id, merged, { writeGuards: config.writeGuards })
+      const noteOnly = Boolean(session_note?.trim()) && !context.trim()
+      const writeMode = mode ?? "replace"
+
+      // Handoff-only: allow empty context when session_note is set (no durable body change).
+      if (!noteOnly) {
+        const guarded =
+          id === GLOBAL_CONTEXT_ID ||
+          id === IMPORTANT_CONTEXT_ID ||
+          id === PROTECTED_CONTEXT_ID
+        if (guarded) {
+          const defaults: Record<string, string> = {
+            [GLOBAL_CONTEXT_ID]: "# Global\n",
+            [IMPORTANT_CONTEXT_ID]: "# Important\n",
+            [PROTECTED_CONTEXT_ID]: "# Protected\n",
+          }
+          if (writeMode === "append") {
+            const prev = (await store.getContextRow(id))?.body ?? defaults[id]
+            const merged = `${prev.trimEnd()}\n\n${context.trim()}\n`
+            const v = validateGuardedScope(id, merged, { writeGuards: config.writeGuards })
+            if (!v.ok) return errorResult(v.error)
+          } else {
+            const v = validateGuardedScope(id, context, { writeGuards: config.writeGuards })
+            if (!v.ok) return errorResult(v.error)
+          }
+        } else if (writeMode === "replace") {
+          const durable = new Set(config.durableScopes)
+          const v = validateDurableMemoryWrite(id, context, durable, undefined, {
+            writeGuards: config.writeGuards,
+          })
           if (!v.ok) return errorResult(v.error)
-        } else {
-          const v = validateGuardedScope(id, context, { writeGuards: config.writeGuards })
-          if (!v.ok) return errorResult(v.error)
         }
-      } else if ((mode ?? "replace") === "replace") {
-        const durable = new Set(config.durableScopes)
-        const v = validateDurableMemoryWrite(id, context, durable, undefined, {
-          writeGuards: config.writeGuards,
-        })
-        if (!v.ok) return errorResult(v.error)
       }
 
-      const result = await store.updateContext({
-        scope: id,
-        context,
-        mode: mode ?? "replace",
-        trimSessionLog: id === SESSION_CONTEXT_ID,
-        sessionRetentionDays: config.sessionRetentionDays,
-      })
+      let result: { id: string; updatedAt: string; length: number }
+      if (noteOnly) {
+        const existing = await store.getContextRow(id)
+        result = {
+          id,
+          updatedAt: existing?.updatedAt ?? new Date().toISOString(),
+          length: existing?.body.length ?? 0,
+        }
+      } else {
+        result = await store.updateContext({
+          scope: id,
+          context,
+          mode: writeMode,
+          trimSessionLog: id === SESSION_CONTEXT_ID,
+          sessionRetentionDays: config.sessionRetentionDays,
+        })
+      }
 
       if (session_note?.trim()) {
         await logMcpSessionActivity(store, {
           tool: "update_context",
-          summary: `updated ${id}`,
+          summary: noteOnly ? `handoff ${id}` : `updated ${id}`,
           sessionNote: session_note,
           ok: true,
           retentionDays: config.sessionRetentionDays,
         })
       }
 
-      return textResult({ ok: true, ...result })
+      return textResult({ ok: true, noteOnly, ...result })
     },
   )
 

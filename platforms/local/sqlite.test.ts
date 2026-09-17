@@ -24,12 +24,21 @@ describe("local FileSqlDatabase", () => {
       assert.ok(seeded.skills >= 1)
 
       const store = new OpenPortStore(sql)
-      const loaded = await store.getContextForScopes(["_important", "_protected", "desk"])
+      const loaded = await store.getContextForScopes([
+        "_important",
+        "_protected",
+        "desk",
+        "_session",
+      ])
       assert.ok(loaded.important?.body.includes("#"))
       assert.ok(loaded.protected?.body.includes("#"))
       assert.equal(loaded.local.map((r) => r.id).join(","), "desk")
+      assert.match(loaded.local[0]?.body ?? "", /Operator prefs/)
+      assert.match(loaded.session?.body ?? "", /- `20/)
       const skill = await store.getSkill("resume-work")
       assert.ok(skill?.body.includes("resume-work"))
+      const clientDoc = await store.getDoc("client-instructions")
+      assert.ok(clientDoc?.body.includes("get_context"))
     } finally {
       sql.close()
       fs.rmSync(dir, { recursive: true, force: true })

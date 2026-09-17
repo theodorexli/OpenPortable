@@ -2,6 +2,7 @@
  * Shared local-host bootstrap: open SQLite, optional seed, config from env.
  */
 import fs from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -16,11 +17,26 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 export const localPlatformRoot = here
 export const localRepoRoot = path.resolve(here, "../..")
 
-export function defaultDbPath(): string {
+/** True when running from an npm/npx install (not a git clone checkout). */
+export function isPackagedInstall(repoRoot: string = localRepoRoot): boolean {
+  const normalized = repoRoot.replace(/\\/g, "/")
   return (
-    process.env.OPENPORT_DB?.trim() ||
-    path.join(localPlatformRoot, "data", "openport.sqlite")
+    normalized.includes("/node_modules/") ||
+    normalized.includes("/.npm/_npx/") ||
+    normalized.includes("/.npm/_cacache/")
   )
+}
+
+export function defaultUserDbPath(): string {
+  return path.join(os.homedir(), ".openport", "openport.sqlite")
+}
+
+export function defaultDbPath(): string {
+  const fromEnv = process.env.OPENPORT_DB?.trim()
+  if (fromEnv) return fromEnv
+  // Packaged npx/npm installs: persist outside the cache so memory survives upgrades.
+  if (isPackagedInstall()) return defaultUserDbPath()
+  return path.join(localPlatformRoot, "data", "openport.sqlite")
 }
 
 export type LocalRuntime = {

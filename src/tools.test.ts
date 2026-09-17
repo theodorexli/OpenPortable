@@ -143,4 +143,37 @@ describe("MCP tools", () => {
       assert.equal(res.data.ok, true)
     })
   })
+
+  it("update_context session_note with empty context is handoff-only", async () => {
+    await withClient(async (client, store) => {
+      await store.updateContext({ scope: "desk", context: "# Desk\n\nkeep me", mode: "replace" })
+      const before = await store.getContextRow("desk")
+
+      const ok = parseToolJson(
+        await client.callTool({
+          name: "update_context",
+          arguments: {
+            scope: "desk",
+            context: "",
+            mode: "append",
+            session_note: "new: handoff only",
+          },
+        }),
+      )
+      assert.equal(ok.isError, false)
+      assert.equal(ok.data.noteOnly, true)
+      const after = await store.getContextRow("desk")
+      assert.equal(after?.body, before?.body)
+      const session = await store.getContextRow("_session")
+      assert.match(session?.body ?? "", /handoff only/)
+    })
+  })
+
+  it("lists resume and handoff prompts", async () => {
+    await withClient(async (client) => {
+      const listed = await client.listPrompts()
+      const names = listed.prompts.map((p) => p.name).sort()
+      assert.deepEqual(names, ["handoff", "resume"])
+    })
+  })
 })

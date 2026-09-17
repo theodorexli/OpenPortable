@@ -12,4 +12,4 @@
 **Contract (server-enforced):** `get_context({ scopes: ["_important", "_protected", "desk"] })`  
 (or your project id instead of `desk`). Must-load is always merged in. Bare `get_context()` errors. More than one local errors.
 
-Seed includes example local **`desk`** and skill **`resume-work`**.
+Seed includes example local **`desk`**, a starter `_session` handoff, and skill **`resume-work`**. Paste **`client-instructions`** into your LLM client so tools actually get called.

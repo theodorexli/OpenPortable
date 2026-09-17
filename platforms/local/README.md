@@ -27,11 +27,23 @@ Core memory logic stays in `/src`. This folder is just the Node adapter.
 
 ## Install and run
 
+### One-liner (no clone)
+
+```bash
+npx -y github:theodorexli/openport
+```
+
+MCP clients can point at that command directly. First run seeds starter markdown; the DB lives at `~/.openport/openport.sqlite`.
+
+### From a clone
+
 ```bash
 npm install
 npm run local:stdio    # stdio: best for Cursor / Claude / Codex
 # or
 npm run local          # HTTP on port 8787
+# or
+npx openport           # package bin → stdio
 ```
 
 HTTP endpoint:
@@ -42,12 +54,17 @@ http://127.0.0.1:8787/mcp
 
 ### Fresh database
 
-First start creates `platforms/local/data/openport.sqlite` (path is overridable) and seeds from `/seed`:
+First start creates the SQLite file and seeds from `/seed`:
 
-- Example local scope: `desk`
+- Example local scope: `desk` (starter prefs + open-thread checklist)
 - Example skill: `resume-work`
+- Example `_session` handoff so the fridge isn’t empty on day one
 - Standing scopes: `_important`, `_protected`, `_global`, `_session`, `_workflow`
-- Docs under `seed/docs/`
+- Docs under `seed/docs/` (including pasteable `client-instructions`)
+
+**Clone default DB:** `platforms/local/data/openport.sqlite`  
+**npx/npm default DB:** `~/.openport/openport.sqlite`  
+Override with `OPENPORT_DB`.
 
 ### Re-apply seed files
 
@@ -63,7 +80,22 @@ Seed upserts by id. It does not delete scopes you added yourself.
 
 ## Connect an MCP client
 
-### Cursor (stdio, recommended)
+Connecting MCP only exposes tools — paste [`seed/docs/client-instructions.md`](../../seed/docs/client-instructions.md) into standing client rules so the model actually calls `get_context` / saves handoffs. MCP prompts **`resume`** and **`handoff`** are also registered.
+
+### Cursor (one-liner)
+
+```json
+{
+  "mcpServers": {
+    "openport": {
+      "command": "npx",
+      "args": ["-y", "github:theodorexli/openport"]
+    }
+  }
+}
+```
+
+### Cursor (stdio from clone)
 
 `~/.cursor/mcp.json`:
 

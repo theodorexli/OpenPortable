@@ -1,21 +1,29 @@
 # Desk
 
-Example **local** scope for day one. Rename the file (and id) to your project, or keep `desk` as a catch-all for “whatever I’m doing right now.”
+Day-one **local** scope. Catch-all for “whatever I’m doing right now” until you create a project-specific id (then swap `desk` in `get_context` / `session_note`).
 
-## What this is for
+This file is meant to be useful on first load — edit it; don’t leave the placeholders forever.
 
-Standing notes that are true for *this* workstream — not live system dumps, not every project at once.
-
-## Working prefs (edit me)
+## Operator prefs
 
 - Prefer concrete next actions over long essays
 - Ask before destructive or irreversible steps
-- When switching clients, leave a `session_note` so the next chat can continue
+- At session start: load memory (`get_context`) before answering from “what we decided”
+- Before you stop or switch clients: leave a `session_note` so the next chat can continue
+- One local scope per `get_context` call — this `desk`, or your project id
 
 ## Open threads
 
-- Replace this bullet with what you’re actually mid-flight on
+- [ ] Rewrite **Operator prefs** to match how you actually want the agent to behave
+- [ ] Pick the real mid-flight work and replace this checklist
+- [ ] After the first real session, leave a `new:` handoff (see `_session`)
+
+## Standing decisions
+
+- Load contract is in force: scoped `get_context`, must-load always merged, no full dump
+- Default skill at session start: `learn_workflow({ skill: "resume-work" })`
+- Durable truth lives in scopes; live dumps belong in `session_note` or a domain tool
 
 ## Done recently
 
-- (optional) Short durable decisions worth keeping — dated by decision, not by clock dump
+- Seeded OpenPort — fridge has starter prefs + an example session handoff; overwrite as you go

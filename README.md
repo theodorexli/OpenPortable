@@ -12,7 +12,7 @@ Agents load only the scopes they need for the current task. Asking for a full du
 | **Skill** | How to work: a procedure bound for this session |
 | **Session** | Handoffs so the next client can continue |
 
-**License:** [MIT](./LICENSE). **Hosts:** local Node + SQLite, or Cloudflare Workers + D1.
+**License:** [MIT](./LICENSE). **Hosts:** local Node + SQLite, or Cloudflare Workers + D1. **Security:** [SECURITY.md](./SECURITY.md). **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ---
 
@@ -46,9 +46,50 @@ OpenPort is the boring middle path. Durable truth lives as markdown scopes in SQ
 
 ---
 
-## Quick start (local)
+## Quick start (one-liner)
 
-Fastest path. No cloud account.
+No clone required. The local stdio host seeds a starter `desk` + example `_session` handoff on first run. DB persists at `~/.openport/openport.sqlite`.
+
+```bash
+npx -y github:theodorexli/openport
+```
+
+### Cursor
+
+`~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "openport": {
+      "command": "npx",
+      "args": ["-y", "github:theodorexli/openport"]
+    }
+  }
+}
+```
+
+### Claude Code
+
+```bash
+claude mcp add openport -- npx -y github:theodorexli/openport
+```
+
+### Codex
+
+```toml
+[mcp_servers.openport]
+command = "npx"
+args = ["-y", "github:theodorexli/openport"]
+```
+
+**Behavior is not automatic.** Connecting MCP only exposes tools. Paste [`seed/docs/client-instructions.md`](./seed/docs/client-instructions.md) into Cursor User Rules / Claude project instructions / `AGENTS.md`, or use MCP prompts **`resume`** / **`handoff`** when your client surfaces them.
+
+When the package is on the npm registry you can swap the args for `["-y", "openport"]`.
+
+---
+
+## Quick start (clone)
 
 ```bash
 git clone https://github.com/theodorexli/openport.git
@@ -57,11 +98,13 @@ npm install
 npm run local:stdio    # good default for Cursor / Claude / Codex
 # or
 npm run local          # HTTP MCP at http://127.0.0.1:8787/mcp
+# or
+npx openport           # same stdio entry via package bin
 ```
 
-A fresh DB seeds an example `desk` project scope and a `resume-work` skill.
+A fresh DB seeds an example `desk` project scope, a starter `_session` handoff, and a `resume-work` skill.
 
-### Cursor
+### Cursor (clone path)
 
 Put this in `~/.cursor/mcp.json` (use your real clone path):
 
@@ -92,9 +135,9 @@ HTTP works too. Run `npm run local` first, then point [mcp-remote](https://www.n
 
 ### Claude Desktop
 
-Same stdio block in `claude_desktop_config.json`.
+Same stdio block in `claude_desktop_config.json` (one-liner or clone path).
 
-### Claude Code
+### Claude Code (clone)
 
 ```bash
 # from the repo root
@@ -104,7 +147,7 @@ claude mcp add openport -- npx tsx platforms/local/stdio.ts
 claude mcp add --transport http openport http://127.0.0.1:8787/mcp
 ```
 
-### Codex
+### Codex (clone)
 
 Codex reads TOML from `~/.codex/config.toml` (or a trusted project's `.codex/config.toml`):
 
@@ -136,7 +179,7 @@ Env vars, reseed, and backup live in [`platforms/local/README.md`](./platforms/l
 
 ## First session
 
-Once the MCP server is connected:
+Once the MCP server is connected — and standing client rules are pasted (see above):
 
 ```text
 1. get_context({ scopes: ["_important", "_protected", "desk"], include_session: true })
@@ -144,13 +187,13 @@ Once the MCP server is connected:
 3. … do the work …
 4. update_context({
      scope: "desk",
-     context: "…optional durable note…",
+     context: "",
      mode: "append",
      session_note: "new: finished triage; left VIP thread open"
    })
 ```
 
-Swap `desk` for your own project id when you have one. Keep one local scope per `get_context` call.
+Empty `context` + `session_note` is handoff-only (durable body unchanged). Put real durable notes in `context` when prefs/decisions changed. Swap `desk` for your own project id when you have one. Keep one local scope per `get_context` call.
 
 ---
 
@@ -304,7 +347,7 @@ Out of scope on purpose. Open an issue only if you have a design that still resp
 
 ## Contributing
 
-Issues and PRs welcome.
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Issues and PRs welcome.
 
 - Keep `/src` free of vendor lock-in (use `SqlDatabase`).
 - Cloudflare changes go under `platforms/cloudflare/`.
@@ -317,6 +360,10 @@ Issues and PRs welcome.
 
 ## Links
 
+- [Changelog](./CHANGELOG.md)
+- [Contributing](./CONTRIBUTING.md)
+- [Security](./SECURITY.md)
+- [Client instructions (paste into your LLM client)](./seed/docs/client-instructions.md)
 - [Local platform guide](./platforms/local/README.md)
 - [Cloudflare platform guide](./platforms/cloudflare/README.md)
 - [Model Context Protocol](https://modelcontextprotocol.io)

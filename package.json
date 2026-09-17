@@ -1,6 +1,5 @@
 {
   "name": "openport",
-  "private": true,
   "version": "0.3.0",
   "description": "Portable agent memory over MCP: the same scoped context, skills, and session handoffs across every LLM client.",
   "license": "MIT",
@@ -8,6 +7,38 @@
   "engines": {
     "node": ">=22.0.0"
   },
+  "bin": {
+    "openport": "./bin/openport.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "platforms/local",
+    "platforms/cloudflare",
+    "seed",
+    "schema.sql",
+    "migrations",
+    "LICENSE",
+    "README.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theodorexli/openport.git"
+  },
+  "bugs": {
+    "url": "https://github.com/theodorexli/openport/issues"
+  },
+  "homepage": "https://github.com/theodorexli/openport#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "agent-memory",
+    "llm",
+    "sqlite"
+  ],
   "scripts": {
     "dev": "wrangler dev --config platforms/cloudflare/wrangler.toml --port 8788",
     "local": "tsx platforms/local/server.ts",
@@ -21,16 +52,17 @@
     "db:migrate:local": "wrangler d1 execute openport --local --config platforms/cloudflare/wrangler.toml --file=./schema.sql",
     "db:seed": "tsx platforms/cloudflare/scripts/seed-all.ts",
     "test": "tsx --test src/*.test.ts platforms/local/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "openport": "node ./bin/openport.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "tsx": "^4.19.0",
     "zod": "^3.25.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260815.1",
     "@types/node": "^22.0.0",
-    "tsx": "^4.19.0",
     "typescript": "^5.8.0",
     "wrangler": "^4"
   }

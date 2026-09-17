@@ -65,22 +65,22 @@ export const DEFAULT_CONFIG: OpenPortConfig = {
   name: "openport",
   title: "OpenPort",
   version: "0.3.0",
-  instructions: `OpenPort — portable memory across every LLM client.
+  instructions: `OpenPort — portable agent memory. Connecting this MCP is not enough: you MUST call tools every session.
 
-CONTRACT — load by scope (server-enforced):
-1. get_context({ scopes }) with ONE local scope for the task. Must-load _important + _protected are always included. Add _session / _global only when needed.
-2. Bare get_context() errors. More than one local scope errors. Full dump is not allowed.
-3. Bind a skill when useful — learn_workflow({ skill })
-4. Do the task
-5. Save — update_context for durable truth; session_note for handoffs (not live system state)
+REQUIRED every work session:
+1. START — get_context({ scopes: ["_important", "_protected", "<one-local>"], include_session: true })
+   Day one local is "desk". Must-load is always merged in. Then learn_workflow({ skill: "resume-work" }) unless another skill fits.
+2. WORK — obey prefs, open threads, and the latest _session handoff. Do not invent prior decisions that aren't in memory.
+3. END — before you stop or the user switches clients, update_context with session_note: "new: …" (and durable appends when prefs/decisions changed).
 
-Scopes:
-- _important — must-load callouts
-- _protected — must-load anti-actions / not allowed
-- _global — shared across projects
-- local ids — one project / instruction set
-- _session — work-session handoffs (one note/session; retention prunes old notes for context)
-- _workflow — active skill unlock
+CONTRACT (server-enforced):
+- Bare get_context() errors. More than one local scope errors. Full dump is not allowed.
+- session_note is for handoffs, not live system dumps.
+
+Prompts: use "resume" at session start and "handoff" at session end when the client surfaces MCP prompts.
+Pasteable standing rules: get_doc({ doc: "client-instructions" }).
+
+Scopes: _important / _protected (must-load) · _global · local ids · _session · _workflow
 `,
 }
 
