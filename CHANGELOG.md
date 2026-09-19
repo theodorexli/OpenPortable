@@ -1,5 +1,9 @@
 # OpenPortable changelog
 
+## Unreleased
+
+- Bare `get_context()` now lists available scope IDs, kinds, and update timestamps without loading memory bodies. Empty selectors also discover scopes; scoped reads retain must-load scopes and the one-local limit.
+
 ## [0.3.1] — 2026-09-18
 
 - Align GitHub/GitLab repository names, descriptions, documentation titles, and npm repository links with OpenPortable

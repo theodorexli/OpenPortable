@@ -22,7 +22,7 @@ Before you stop or the user switches clients:
 During work, use update_context({ session_id, scope: "desk", context: "", session_note: "new: …" }) for a checkpoint.
 If a call is gated, follow its next_action and retry.
 
-Never call bare get_context(). Never load more than one local scope per call.
+Use bare get_context() to discover available scope IDs, kinds, and timestamps without loading memory bodies. Then choose a local and call start_session. Never load more than one local scope per memory read.
 Prefer start_session over get_context + learn_workflow.
 ```
 

@@ -29,7 +29,7 @@ Keep `/src` free of vendor lock-in. Hosts implement `SqlDatabase` and call `crea
 ## Pull requests
 
 - Prefer a focused PR with a short “why” in the description.
-- Respect the **load contract** (`get_context` requires scopes; ≤1 local; must-load always merged). Don’t weaken it without discussion.
+- Respect the **load contract** (`get_context()` lists scope metadata only; scoped reads allow ≤1 local and merge must-load scopes). Don’t weaken it without discussion.
 - Add or extend tests under `src/*.test.ts` (and `platforms/local/*.test.ts` for the Node host) when you change store or tool behavior.
 - Don’t commit secrets, `.dev.vars`, or local SQLite files.
 

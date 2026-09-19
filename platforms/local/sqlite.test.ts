@@ -24,6 +24,13 @@ describe("local FileSqlDatabase", () => {
       assert.ok(seeded.skills >= 1)
 
       const store = new OpenPortStore(sql)
+      const scopes = await store.listContextScopes()
+      assert.equal(scopes.length, seeded.context)
+      assert.deepEqual(scopes.find(({ id }) => id === "desk"), {
+        id: "desk", kind: "local", updatedAt: (await store.getContextRow("desk"))!.updatedAt,
+      })
+      assert.equal(scopes.find(({ id }) => id === "_important")?.kind, "reserved")
+      assert.ok(scopes.every((scope) => !("body" in scope)))
       const loaded = await store.getContextForScopes([
         "_important",
         "_protected",

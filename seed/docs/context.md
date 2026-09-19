@@ -10,7 +10,7 @@
 | **Workflow** | `_workflow` | Read-only skill status; independent gates live in `mcp_sessions` |
 
 **Contract (server-enforced):** `get_context({ scopes: ["_important", "_protected", "desk"] })`  
-(or your local id instead of `desk`). Must-load is always merged in. Bare `get_context()` errors. More than one local errors.
+(or your local id instead of `desk`). Must-load is merged into scoped reads. Bare `get_context()` lists available scope IDs, kinds (`local` or `reserved`), and timestamps without memory bodies. Empty selectors also return the index; include flags apply only to scoped reads. More than one local per memory load errors.
 
 Seed includes example local **`desk`** (usable defaults + seed marker), skills **`bootstrap`** / **`resume-work`**, and a starter `_session` handoff. Prefer **`start_session`**. Paste **`client-instructions`** into your LLM client so tools actually get called.
 

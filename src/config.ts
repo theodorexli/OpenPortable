@@ -83,7 +83,7 @@ BEFORE you stop or they switch clients:
   For checkpoints while continuing: update_context({ session_id, scope: "desk", context: "", session_note: "new: …" }).
 
 GATE: protected calls reject missing/expired session IDs, wrong locals, and changed skills. Follow next_action on gate errors.
-CONTRACT: bare get_context() errors; ≤1 local per load. Prefer start_session over get_context+learn_workflow.
+CONTRACT: get_context() lists available scopes (IDs, kinds, timestamps; no memory bodies). Choose a local, then use start_session. Scoped reads include must-load scopes and allow ≤1 local per load.
 Prompts: "resume" / "handoff". Fallback paste: get_doc({ doc: "client-instructions" }).
 `,
 }

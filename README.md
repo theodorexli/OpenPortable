@@ -79,7 +79,7 @@ OpenPortable keeps those records outside any single client. Durable truth lives 
 
 ## What you get
 
-- **Scoped load contract.** `get_context` needs explicit scopes. Must-load scopes are included on scoped reads. At most one **local** scope per call.
+- **Scoped load contract.** `get_context()` lists available scopes without memory bodies. Explicit scoped reads include must-load scopes. At most one **local** scope per memory load.
 - **One-shot start.** `start_session` loads memory, binds a skill (`bootstrap` / `resume-work` / your id), and returns `session_id`, expiry, and `next_action`.
 - **Skills by id.** Author with `update_skill`; bind with `start_session({ skill })` or `learn_workflow`. Unchanged skills can skip the body via hash.
 - **Enforced gate.** Missing/expired sessions, wrong locals, or changed skills return a corrective `next_action` before protected tools execute.
@@ -267,17 +267,18 @@ You talk normally. Under the hood the client should run something like:
 
 ### Load contract (server-enforced)
 
-1. `get_context` requires `scopes=` or `scope=`. A bare call errors. No full dump.
-2. Must-load scopes get merged in; defaults are `_important` and `_protected`. Embedded hosts can configure this list.
-3. At most one local scope per call. Zero locals is fine if you only need standing rules.
-4. Pull `_session` / `_global` with flags or by listing them. Don't reload every local "just in case."
-5. Persist durable truth with `update_context`. Use short `session_note` summaries for handoffs; keep live domain state in its source system.
+1. `get_context()` returns an index of stored scopes: `id`, `kind` (`local` or `reserved`), and `updatedAt`. It does not load memory bodies or open a session. Empty or whitespace-only selectors also return the index; `include_session` / `include_global` apply only when a non-empty scope is selected.
+2. Use `scopes=` or `scope=` to load memory, or `start_session({ local: "<id>" })` to begin work.
+3. Must-load scopes get merged into scoped reads; defaults are `_important` and `_protected`. Embedded hosts can configure this list.
+4. At most one local scope per memory load; the index can list all locals. Zero locals is fine if you only need standing rules.
+5. Pull `_session` / `_global` with flags or by listing them. Don't reload every local "just in case."
+6. Persist durable truth with `update_context`. Use short `session_note` summaries for handoffs; keep live domain state in its source system.
 
 ### MCP tools
 
 | Tool | Role |
 |------|------|
-| `get_context` | Load by scope. Prefer `start_session` at session start |
+| `get_context` | Discover scopes with a bare call, or load by scope. Use `start_session` to begin work |
 | `start_session` | Load memory, bind a skill, return `session_id`, expiry, and `next_action` |
 | `learn_workflow` | Bind/reload a skill using `session_id`; does not extend expiry |
 | `finish_session` | Save a final handoff and close `session_id` |

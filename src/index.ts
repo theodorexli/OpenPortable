@@ -1,6 +1,6 @@
 /** Public, platform-independent embedding API. */
 export { createOpenPortServer, registerOpenPortTools, type CreateOpenPortServerOptions } from "./createServer.js"
-export { OpenPortStore, type ContextRow, type ContextBundle, type SkillRow, type DocRow } from "./store.js"
+export { OpenPortStore, type ContextRow, type ContextScope, type ContextBundle, type SkillRow, type DocRow } from "./store.js"
 export { OpenPortSessions, WorkflowGateError, type StartSessionInput, type WorkflowRequirement } from "./sessions.js"
 export { DEFAULT_CONFIG, resolveConfig, type OpenPortConfig } from "./config.js"
 export { type GatedToolOptions } from "./integration.js"

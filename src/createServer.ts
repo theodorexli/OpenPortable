@@ -138,7 +138,7 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
     "get_context",
     {
       description:
-        "Load memory by scopes. Prefer start_session at session start (loads + binds skill). CONTRACT: scopes= required (must-load auto-included + ≤1 local). Bare call errors.",
+        "Discover available scopes with get_context(), or load memory by scope/scopes (must-load auto-included + ≤1 local). The index returns IDs, kinds, and timestamps only. Prefer start_session once you know the local.",
       inputSchema: z.object({
         scope: z
           .string()
@@ -151,11 +151,11 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
         include_session: z
           .boolean()
           .optional()
-          .describe("Also include _session handoffs (recommended true at session start)."),
+          .describe("On scoped loads, also include _session handoffs (recommended true at session start)."),
         include_global: z
           .boolean()
           .optional()
-          .describe("Also include _global (default false)."),
+          .describe("On scoped loads, also include _global (default false)."),
       }),
     },
     async ({ scope, scopes, include_session, include_global }) => {
@@ -167,6 +167,14 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
         mustLoadScopes: config.mustLoadScopes,
       })
       if (!resolved.ok) return errorResult(resolved.error)
+      if (resolved.mode === "index") {
+        return textResult({
+          mode: "index",
+          scopes: await store.listContextScopes(),
+          mustLoad: config.mustLoadScopes,
+          next_action: "Choose a local scope and call start_session({ local: \"<id>\" }) to begin work, or get_context({ scope: \"<id>\" }) to read it. If no local exists, start_session({ local: \"desk\" }) begins setup.",
+        })
+      }
       const data = await store.getContextForScopes(resolved.scopes)
       const localBody = data.local[0]?.body
       const localId = data.local[0]?.id

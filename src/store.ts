@@ -16,6 +16,12 @@ export type ContextRow = {
   updatedAt: string
 }
 
+export type ContextScope = {
+  id: string
+  kind: "reserved" | "local"
+  updatedAt: string
+}
+
 export type ContextBundle = {
   refreshedAt: string
   /** Must-load: explicit callouts. */
@@ -57,6 +63,19 @@ function emptyBundle(refreshedAt: string): ContextBundle {
 
 export class OpenPortStore {
   constructor(readonly db: SqlDatabase) {}
+
+  /** Discover available scopes without retrieving their memory bodies. */
+  async listContextScopes(): Promise<ContextScope[]> {
+    const rows = await this.db.prepare("SELECT id, updated_at FROM context").all<{
+      id: string
+      updated_at: string
+    }>()
+    return (rows.results ?? []).map((row): ContextScope => ({
+      id: row.id,
+      kind: isReservedScope(row.id) ? "reserved" : "local",
+      updatedAt: row.updated_at,
+    })).sort((a, b) => a.id.localeCompare(b.id))
+  }
 
   async getContextRow(id: string): Promise<ContextRow | null> {
     const row = await this.db

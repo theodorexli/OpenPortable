@@ -5,7 +5,7 @@ Copy into `update_skill`.
 ```markdown
 # Skill: your-skill-id
 
-**Hard:** Always `get_context({ scopes: ["_important", "_protected", "your-local"] })` — bare dump is rejected by the server.
+**Hard:** Use `get_context()` to discover available scopes, then load memory with `get_context({ scope: "your-local" })`. Must-load scopes are included automatically; at most one local per load.
 
 ## Steps
 

@@ -11,7 +11,7 @@ export type ResolveLoadScopesInput = {
 }
 
 export type ResolveLoadScopesResult =
-  | { ok: true; scopes: string[] }
+  | { ok: true; mode: "index" | "load"; scopes: string[] }
   | { ok: false; error: string }
 
 function isLocal(id: string): boolean {
@@ -20,8 +20,8 @@ function isLocal(id: string): boolean {
 
 /**
  * Enforce the load contract for get_context:
- * - scopes or scope required (no full dump)
- * - always include must-load
+ * - no non-empty selector returns a scope index (no bodies)
+ * - scoped loads always include must-load
  * - at most one local scope
  */
 export function resolveLoadScopes(input: ResolveLoadScopesInput): ResolveLoadScopesResult {
@@ -29,11 +29,7 @@ export function resolveLoadScopes(input: ResolveLoadScopesInput): ResolveLoadSco
   const single = input.scope?.trim()
 
   if (!fromScopes.length && !single) {
-    return {
-      ok: false,
-      error:
-        "scopes required. Pass scopes=[_important, _protected, <one-local>] (or scope=<id>). Full dump is not allowed.",
-    }
+    return { ok: true, mode: "index", scopes: [] }
   }
 
   const list: string[] = []
@@ -58,5 +54,5 @@ export function resolveLoadScopes(input: ResolveLoadScopesInput): ResolveLoadSco
     }
   }
 
-  return { ok: true, scopes: list }
+  return { ok: true, mode: "load", scopes: list }
 }

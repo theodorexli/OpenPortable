@@ -51,7 +51,7 @@ async function start(client: Client, local = "desk") {
 }
 
 describe("MCP tools", () => {
-  it("get_context enforces load contract: loads, rejects bare and multi-local", async () => {
+  it("get_context discovers scopes, loads selected memory, and rejects multi-local reads", async () => {
     await withClient(async (client, store) => {
       await store.updateContext({ scope: "_important", context: "# Important\n\n- rule", mode: "replace" })
       await store.updateContext({ scope: "_protected", context: "# Protected\n\n- no", mode: "replace" })
@@ -79,8 +79,21 @@ describe("MCP tools", () => {
       )
 
       const bare = parseToolJson(await client.callTool({ name: "get_context", arguments: {} }))
-      assert.equal(bare.isError, true)
-      assert.match(String(bare.data.error), /scopes required/)
+      assert.equal(bare.isError, false)
+      assert.equal(bare.data.mode, "index")
+      const scopes = bare.data.scopes as Array<{ id: string; kind: string; updatedAt: string }>
+      assert.deepEqual(scopes.map(({ id }) => id), ["_important", "_protected", "desk", "other"])
+      assert.deepEqual(scopes.map(({ kind }) => kind), ["reserved", "reserved", "local", "local"])
+      for (const scope of scopes) {
+        assert.deepEqual(Object.keys(scope).sort(), ["id", "kind", "updatedAt"])
+        assert.equal(scope.updatedAt, (await store.getContextRow(scope.id))!.updatedAt)
+      }
+      assert.equal(bare.data.important, undefined)
+      assert.equal(bare.data.protected, undefined)
+      assert.equal(bare.data.session_id, undefined)
+      assert.equal(await store.getContextRow("_workflow"), null)
+      assert.deepEqual(bare.data.mustLoad, ["_important", "_protected"])
+      assert.match(String(bare.data.next_action), /start_session/)
 
       const many = parseToolJson(
         await client.callTool({
@@ -90,6 +103,26 @@ describe("MCP tools", () => {
       )
       assert.equal(many.isError, true)
       assert.match(String(many.data.error), /at most one local/)
+    })
+  })
+
+  it("scope discovery handles empty stores and empty selectors without loading bodies", async () => {
+    await withClient(async (client, store) => {
+      const empty = parseToolJson(await client.callTool({ name: "get_context", arguments: {} }))
+      assert.equal(empty.isError, false)
+      assert.deepEqual(empty.data.scopes, [])
+      assert.match(String(empty.data.next_action), /desk/)
+
+      await store.updateContext({ scope: "_global", context: "Private global memory" })
+      await store.updateContext({ scope: "_session", context: "Private handoff" })
+      for (const args of [{ scopes: [] }, { scope: " ", scopes: [" "] },
+        { include_global: true, include_session: true }]) {
+        const result = parseToolJson(await client.callTool({ name: "get_context", arguments: args }))
+        assert.equal(result.isError, false)
+        assert.equal(result.data.mode, "index")
+        assert.equal((result.data.scopes as unknown[]).length, 2)
+        assert.doesNotMatch(JSON.stringify(result.data), /Private/)
+      }
     })
   })
 

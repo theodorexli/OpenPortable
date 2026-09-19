@@ -2,7 +2,7 @@
 
 Pick up where the last client left off. Prefer **`start_session`** (loads memory + binds this skill in one call). Keep its returned `session_id` for writes and gated tools.
 
-**Hard:** Always load by scope — bare `get_context()` is rejected. At most one local.
+**Hard:** Load memory by scope, at most one local per load. Bare `get_context()` lists available scopes without loading their bodies.
 
 ## Steps
 

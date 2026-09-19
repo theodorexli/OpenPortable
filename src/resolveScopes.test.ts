@@ -6,10 +6,12 @@ import { resolveLoadScopes } from "./resolveScopes.js"
 describe("resolveLoadScopes", () => {
   const mustLoad = ["_important", "_protected"]
 
-  it("rejects bare call", () => {
-    const r = resolveLoadScopes({ mustLoadScopes: mustLoad })
-    assert.equal(r.ok, false)
-    if (!r.ok) assert.match(r.error, /scopes required/i)
+  it("discovers scopes when no non-empty selector is supplied", () => {
+    for (const selectors of [{}, { scopes: [] }, { scope: "  ", scopes: [" "] },
+      { include_global: true, include_session: true }]) {
+      const r = resolveLoadScopes({ mustLoadScopes: mustLoad, ...selectors })
+      assert.deepEqual(r, { ok: true, mode: "index", scopes: [] })
+    }
   })
 
   it("rejects more than one local", () => {

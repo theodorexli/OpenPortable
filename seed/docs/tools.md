@@ -5,7 +5,7 @@
 | Tool | Job |
 |------|-----|
 | `start_session` | **Preferred session start.** Load must-load + one local + `_session`, bind skill, return `session_id`, expiry, and `next_action`. Default skill: `bootstrap` (seed local) or `resume-work`. Override with `skill:`. Hits whichever host DB you wired (SQLite or D1) |
-| `get_context` | Load by `scopes=` / `scope=`; must-load auto-included; ≤1 local. Bare call errors. Prefer `start_session` |
+| `get_context` | Bare call lists scope IDs, kinds, and timestamps without bodies. Load by `scopes=` / `scope=`; must-load auto-included; ≤1 local. Use `start_session` to begin work |
 | `learn_workflow` | Bind/reload a skill using `session_id`; does not extend session expiry |
 | `finish_session` | Save `session_note` and close `session_id` |
 | `update_context` | Write durable memory; optional `session_note` (`new:` / `rewrite:` / `!`). Empty `context` + `session_note` = handoff-only |
