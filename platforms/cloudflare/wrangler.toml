@@ -1,0 +1,21 @@
+# Cloudflare Workers + D1 adapter for OpenPort portable memory.
+
+name = "openport"
+compatibility_date = "2026-09-17"
+main = "worker/index.ts"
+
+[observability]
+enabled = true
+
+# Written by install skill (defaults shown).
+[vars]
+OPENPORT_SESSION_RETENTION_DAYS = "14"
+OPENPORT_WRITE_GUARDS = "strict"
+
+# Create with: npm run db:create
+# Then paste database_id below and set remote = true for prod D1.
+[[d1_databases]]
+binding = "DB"
+database_name = "openport"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+# remote = true

@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS mcp_docs (
+  id TEXT PRIMARY KEY,
+  body TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);

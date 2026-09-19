@@ -1,0 +1,92 @@
+{
+  "name": "openportable",
+  "version": "0.3.1",
+  "description": "Portable MCP memory, skills, workflow gates, and session handoffs across AI clients.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "bin": {
+    "openportable": "./bin/openportable.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "platforms/local/*.ts",
+    "platforms/local/README.md",
+    "platforms/cloudflare/worker/*.ts",
+    "platforms/cloudflare/scripts/*.ts",
+    "platforms/cloudflare/wrangler.toml",
+    "platforms/cloudflare/README.md",
+    "seed",
+    "schema.sql",
+    "migrations",
+    "LICENSE",
+    "README.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md",
+    "dist",
+    "examples",
+    "tsconfig.json",
+    "tsconfig.build.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theodorexli/openportable.git"
+  },
+  "bugs": {
+    "url": "https://github.com/theodorexli/openportable/issues"
+  },
+  "homepage": "https://github.com/theodorexli/openportable#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "portable-memory",
+    "llm",
+    "sqlite"
+  ],
+  "scripts": {
+    "dev": "wrangler dev --config platforms/cloudflare/wrangler.toml --port 8788",
+    "local": "tsx platforms/local/server.ts",
+    "local:stdio": "tsx platforms/local/stdio.ts",
+    "local:seed": "tsx platforms/local/seed-cli.ts",
+    "local:export": "tsx platforms/local/export-cli.ts",
+    "local:import": "tsx platforms/local/import-cli.ts",
+    "deploy": "wrangler deploy --config platforms/cloudflare/wrangler.toml",
+    "db:create": "wrangler d1 create openport --config platforms/cloudflare/wrangler.toml",
+    "db:migrate": "tsx platforms/cloudflare/scripts/migrate.ts",
+    "db:migrate:local": "tsx platforms/cloudflare/scripts/migrate.ts --local",
+    "db:seed": "tsx platforms/cloudflare/scripts/seed-all.ts",
+    "test": "tsx --test src/*.test.ts platforms/local/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
+    "openportable": "node ./bin/openportable.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "tsx": "^4.19.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260815.1",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0",
+    "wrangler": "^4"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schema.sql": "./schema.sql",
+    "./migrations/*.sql": "./migrations/*.sql"
+  },
+  "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
