@@ -434,6 +434,7 @@ This saves the handoff and closes the session. Use update_context with empty con
         try {
           await logMcpSessionActivity(store, {
             localId: access.session.local,
+            sessionId: access.session.id,
             tool: "update_context",
             summary: noteOnly ? `handoff ${id}` : `updated ${id}`,
             sessionNote: session_note,
@@ -456,7 +457,7 @@ This saves the handoff and closes the session. Use update_context with empty con
   server.registerTool(
     "collapse_context",
     {
-      description: "Prune/collapse a memory scope (session retention + archived wrappers).",
+      description: "Prune `_session` retention and wrap fat ## Archived blocks. Ordinary markdown is not treated as a session log.",
       inputSchema: z.object({
         session_id: sessionIdSchema,
         scope: z.string().default(SESSION_CONTEXT_ID),
@@ -467,16 +468,16 @@ This saves the handoff and closes the session. Use update_context with empty con
       if (id === WORKFLOW_CONTEXT_ID) return errorResult("_workflow is server-managed; use start_session / learn_workflow.")
       const access = await gate(session_id, id)
       if (!access.ok) return access.result
-      const row = await store.getContextRow(id)
-      if (!row) return errorResult(`Scope "${id}" not found`)
-      const result = collapseContextBody(row.body, config.sessionRetentionDays)
-      await store.updateContext({
-        scope: id,
-        context: result.collapsed,
-        mode: "replace",
-        sessionRetentionDays: config.sessionRetentionDays,
-      })
-      return textResult({ ok: true, scope: id, ...result })
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const row = await store.getContextRow(id)
+        if (!row) return errorResult(`Scope "${id}" not found`)
+        const result = collapseContextBody(row.body, config.sessionRetentionDays, { scope: id })
+        if (result.collapsed === row.body) return textResult({ ok: true, scope: id, ...result })
+        if (await store.compareAndSwapContext(id, row.body, result.collapsed)) {
+          return textResult({ ok: true, scope: id, ...result })
+        }
+      }
+      return errorResult("Context changed concurrently; retry collapse_context.")
     },
   )
 

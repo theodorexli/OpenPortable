@@ -41,6 +41,10 @@ export type ContextBundle = {
 export type DocRow = { id: string; body: string; updatedAt: string }
 export type SkillRow = { id: string; body: string; updatedAt: string }
 
+const WRITE_CAS_ATTEMPTS = 8
+
+type MemoryTable = "context" | "mcp_docs" | "mcp_skills"
+
 function mapRow(r: { id: string; body: string; updated_at: string }): ContextRow {
   return { id: r.id, body: r.body ?? "", updatedAt: r.updated_at }
 }
@@ -85,14 +89,31 @@ export class OpenPortStore {
     return row ? mapRow(row) : null
   }
 
-  /** Optimistic update for shared handoffs; concurrent sessions must not lose notes. */
-  async compareAndSwapContext(id: string, previousBody: string | null, body: string): Promise<boolean> {
+  private async compareAndSwapRow(
+    table: MemoryTable,
+    id: string,
+    previousBody: string | null,
+    body: string,
+  ): Promise<boolean> {
     const row = await this.db.prepare(
-      `INSERT INTO context (id, body, updated_at) VALUES (?, ?, ?)
+      `INSERT INTO ${table} (id, body, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at
-       WHERE context.body = ? RETURNING id`,
+       WHERE ${table}.body = ? RETURNING id`,
     ).bind(id, body, new Date().toISOString(), previousBody).first<{ id: string }>()
     return Boolean(row)
+  }
+
+  /** Optimistic update for shared handoffs; concurrent sessions must not lose notes. */
+  async compareAndSwapContext(id: string, previousBody: string | null, body: string): Promise<boolean> {
+    return this.compareAndSwapRow("context", id, previousBody, body)
+  }
+
+  async compareAndSwapDoc(id: string, previousBody: string | null, body: string): Promise<boolean> {
+    return this.compareAndSwapRow("mcp_docs", id, previousBody, body)
+  }
+
+  async compareAndSwapSkill(id: string, previousBody: string | null, body: string): Promise<boolean> {
+    return this.compareAndSwapRow("mcp_skills", id, previousBody, body)
   }
 
   async getContext(scope?: string): Promise<ContextBundle> {
@@ -165,25 +186,23 @@ export class OpenPortStore {
     const id = input.scope.trim()
     if (!id) throw new Error("scope is required")
     const mode = input.mode ?? "replace"
-    const existing = await this.getContextRow(id)
-    let nextBody =
-      mode === "append" && existing?.body
-        ? `${existing.body.trimEnd()}\n\n${input.context.trim()}`
-        : input.context
+    for (let attempt = 0; attempt < WRITE_CAS_ATTEMPTS; attempt++) {
+      const existing = await this.getContextRow(id)
+      let nextBody =
+        mode === "append" && existing?.body
+          ? `${existing.body.trimEnd()}\n\n${input.context.trim()}`
+          : input.context
 
-    if (id === SESSION_CONTEXT_ID && (input.trimSessionLog || mode === "append")) {
-      nextBody = trimSessionLogBody(nextBody, input.sessionRetentionDays)
+      if (id === SESSION_CONTEXT_ID && (input.trimSessionLog || mode === "append")) {
+        nextBody = trimSessionLogBody(nextBody, input.sessionRetentionDays)
+      }
+
+      const updatedAt = new Date().toISOString()
+      if (await this.compareAndSwapRow("context", id, existing?.body ?? null, nextBody)) {
+        return { id, updatedAt, length: nextBody.length }
+      }
     }
-
-    const updatedAt = new Date().toISOString()
-    await this.db
-      .prepare(
-        `INSERT INTO context (id, body, updated_at) VALUES (?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at`,
-      )
-      .bind(id, nextBody, updatedAt)
-      .run()
-    return { id, updatedAt, length: nextBody.length }
+    throw new Error("Context changed concurrently; retry the write.")
   }
 
   async getDoc(id: string): Promise<DocRow | null> {
@@ -212,20 +231,18 @@ export class OpenPortStore {
     body: string,
     mode: "replace" | "append" = "replace",
   ): Promise<DocRow> {
-    const existing = await this.getDoc(id)
-    const nextBody =
-      mode === "append" && existing?.body
-        ? `${existing.body.trimEnd()}\n\n${body.trim()}`
-        : body
-    const updatedAt = new Date().toISOString()
-    await this.db
-      .prepare(
-        `INSERT INTO mcp_docs (id, body, updated_at) VALUES (?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at`,
-      )
-      .bind(id, nextBody, updatedAt)
-      .run()
-    return { id, body: nextBody, updatedAt }
+    for (let attempt = 0; attempt < WRITE_CAS_ATTEMPTS; attempt++) {
+      const existing = await this.getDoc(id)
+      const nextBody =
+        mode === "append" && existing?.body
+          ? `${existing.body.trimEnd()}\n\n${body.trim()}`
+          : body
+      const updatedAt = new Date().toISOString()
+      if (await this.compareAndSwapDoc(id, existing?.body ?? null, nextBody)) {
+        return { id, body: nextBody, updatedAt }
+      }
+    }
+    throw new Error("Doc changed concurrently; retry the write.")
   }
 
   async getSkill(id: string): Promise<SkillRow | null> {
@@ -254,19 +271,17 @@ export class OpenPortStore {
     body: string,
     mode: "replace" | "append" = "replace",
   ): Promise<SkillRow> {
-    const existing = await this.getSkill(id)
-    const nextBody =
-      mode === "append" && existing?.body
-        ? `${existing.body.trimEnd()}\n\n${body.trim()}`
-        : body
-    const updatedAt = new Date().toISOString()
-    await this.db
-      .prepare(
-        `INSERT INTO mcp_skills (id, body, updated_at) VALUES (?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at`,
-      )
-      .bind(id, nextBody, updatedAt)
-      .run()
-    return { id, body: nextBody, updatedAt }
+    for (let attempt = 0; attempt < WRITE_CAS_ATTEMPTS; attempt++) {
+      const existing = await this.getSkill(id)
+      const nextBody =
+        mode === "append" && existing?.body
+          ? `${existing.body.trimEnd()}\n\n${body.trim()}`
+          : body
+      const updatedAt = new Date().toISOString()
+      if (await this.compareAndSwapSkill(id, existing?.body ?? null, nextBody)) {
+        return { id, body: nextBody, updatedAt }
+      }
+    }
+    throw new Error("Skill changed concurrently; retry the write.")
   }
 }

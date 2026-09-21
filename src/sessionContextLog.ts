@@ -11,7 +11,7 @@ export function sessionHeader(retentionDays: number): string {
 
 **Whiteboard — one substantive note per work session.** Decisions and handoffs for the next client. Not tool noise.
 
-**Add** merges into the current (latest) session line. Prefix \`rewrite:\` / \`!\` to replace it, or \`new:\` to start a fresh session line. Keep durable prefs in \`_global\` or local scopes.
+**Add** merges into this work session's line. Prefix \`rewrite:\` / \`!\` to replace it, or \`new:\` to start a fresh session line. Keep durable prefs in \`_global\` or local scopes.
 
 Retention: last **${retentionDays}** days of notes (hard cap ${SESSION_LOG_HARD_MAX_LINES} lines) — forever is not practical for context windows.
 
@@ -21,10 +21,18 @@ Retention: last **${retentionDays}** days of notes (hard cap ${SESSION_LOG_HARD_
 /** @deprecated use sessionHeader(retentionDays) */
 export const SESSION_LOG_HEADER = sessionHeader(DEFAULT_SESSION_RETENTION_DAYS)
 
+const SESSION_ENTRY_STAMP = /^- `(\d{4}-\d{2}-\d{2}(?:T[^`]*)?)`/
+const SESSION_ENTRY_ID = /^- `\d{4}-\d{2}-\d{2}(?:T[^`]*)?` \[#([^\]]+)\]/
+
 /** Timestamp on a session entry line (`- \`ISO\` …`). */
 export function sessionEntryAt(line: string): string | null {
-  const m = line.match(/^- `(\d{4}-\d{2}-\d{2}(?:T[^`]*)?)`/)
+  const m = line.match(SESSION_ENTRY_STAMP)
   return m?.[1] ?? null
+}
+
+/** Stable work-session id on a handoff line (`- \`ISO\` [#session-id] …`). */
+export function sessionEntryId(line: string): string | null {
+  return line.match(SESSION_ENTRY_ID)?.[1] ?? null
 }
 
 /** @deprecated alias — day or full ISO prefix */
@@ -34,7 +42,10 @@ export function sessionEntryDay(line: string): string | null {
 }
 
 export function sessionEntryText(line: string): string {
-  return line.replace(/^- `\d{4}-\d{2}-\d{2}(?:T[^`]*)?`\s*/, "").trim()
+  return line
+    .replace(/^- `\d{4}-\d{2}-\d{2}(?:T[^`]*)?`\s*/, "")
+    .replace(/^\[#[^\]]+\]\s*/, "")
+    .trim()
 }
 
 function truncateLine(line: string, max: number): string {
@@ -54,18 +65,24 @@ function parseSessionBody(body: string, retentionDays: number): { header: string
 }
 
 /**
- * Merge note into the current work-session line (latest entry).
+ * Merge note into this work session's line (tagged by session id).
  * - `new:` → always start a new line
  * - `rewrite:` / `!` → replace the current line
  * - otherwise append onto the current line (or create the first)
  */
+function formatSessionEntry(stamp: string, text: string, sessionId?: string): string {
+  const id = sessionId ? `[#${sessionId}] ` : ""
+  return truncateLine(`- \`${stamp}\` ${id}${text}`, 1200)
+}
+
 export function mergeSessionNote(
   existingLine: string | null,
   rawNote: string,
-  opts?: { localId?: string; at?: string },
+  opts?: { localId?: string; at?: string; sessionId?: string },
 ): string {
   const at = opts?.at ?? new Date().toISOString()
   const scope = opts?.localId ? `${opts.localId}: ` : ""
+  const sessionId = opts?.sessionId ?? (existingLine ? sessionEntryId(existingLine) ?? undefined : undefined)
   let note = rawNote.trim().replace(/\s+/g, " ")
   const startNew = /^new:\s*/i.test(note)
   if (startNew) note = note.replace(/^new:\s*/i, "").trim()
@@ -74,14 +91,14 @@ export function mergeSessionNote(
 
   if (startNew || !existingLine || rewrite) {
     const stamp = startNew || !existingLine ? at : (sessionEntryAt(existingLine) ?? at)
-    return truncateLine(`- \`${stamp}\` ${scope}${note}`, 1200)
+    return formatSessionEntry(stamp, `${scope}${note}`, sessionId)
   }
 
   const stamp = sessionEntryAt(existingLine) ?? at
   const prior = sessionEntryText(existingLine)
-  if (!prior) return truncateLine(`- \`${stamp}\` ${scope}${note}`, 1200)
-  if (prior.includes(note)) return truncateLine(`- \`${stamp}\` ${prior}`, 1200)
-  return truncateLine(`- \`${stamp}\` ${prior} · ${note}`, 1200)
+  if (!prior) return formatSessionEntry(stamp, `${scope}${note}`, sessionId)
+  if (prior.includes(note)) return formatSessionEntry(stamp, prior, sessionId)
+  return formatSessionEntry(stamp, `${prior} · ${note}`, sessionId)
 }
 
 /** @deprecated use mergeSessionNote */
@@ -117,26 +134,45 @@ export function trimSessionLogBody(
   return `${header}\n\n${kept.join("\n")}\n`
 }
 
+/** Latest handoff for this work session — never the latest line in the shared log. */
+function currentSessionEntry(
+  entries: string[],
+  opts?: { sessionId?: string },
+): string | null {
+  if (opts?.sessionId) {
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (sessionEntryId(entries[i]!) === opts.sessionId) return entries[i]!
+    }
+    return null
+  }
+  return entries.length ? entries[entries.length - 1]! : null
+}
+
 /** Apply a session_note to full `_session` markdown (replace-ready). */
 export function applySessionNoteToBody(
   body: string,
   rawNote: string,
-  opts?: { localId?: string; retentionDays?: number; at?: string; failed?: boolean },
+  opts?: { localId?: string; sessionId?: string; retentionDays?: number; at?: string; failed?: boolean },
 ): string {
   const retentionDays = opts?.retentionDays ?? DEFAULT_SESSION_RETENTION_DAYS
   const { header, entries } = parseSessionBody(body || sessionHeader(retentionDays), retentionDays)
-  const current = entries.length ? entries[entries.length - 1]! : null
+  const current = currentSessionEntry(entries, opts)
   let note = rawNote.trim()
   if (opts?.failed && !note.includes("FAILED")) note = `${note} · **FAILED**`
 
   const startNew = /^new:\s*/i.test(note)
-  const merged = mergeSessionNote(current, note, { localId: opts?.localId, at: opts?.at })
+  const merged = mergeSessionNote(current, note, {
+    localId: opts?.localId,
+    sessionId: opts?.sessionId,
+    at: opts?.at,
+  })
 
   let nextEntries: string[]
   if (!current || startNew) {
     nextEntries = [...entries, merged]
   } else {
-    nextEntries = [...entries.slice(0, -1), merged]
+    const idx = entries.lastIndexOf(current)
+    nextEntries = [...entries.slice(0, idx), merged, ...entries.slice(idx + 1)]
   }
 
   return trimSessionLogBody(`${header}\n\n${nextEntries.join("\n")}\n`, retentionDays)
@@ -148,6 +184,7 @@ export async function logMcpSessionActivity(
     tool: string
     summary: string
     localId?: string
+    sessionId?: string
     sessionNote?: string
     ok?: boolean
     retentionDays?: number
@@ -161,6 +198,7 @@ export async function logMcpSessionActivity(
     const prev = await store.getContextRow(SESSION_CONTEXT_ID)
     const next = applySessionNoteToBody(prev?.body ?? "", note, {
       localId: entry.localId,
+      sessionId: entry.sessionId,
       retentionDays,
       failed: entry.ok === false,
     })

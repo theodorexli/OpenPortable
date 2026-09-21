@@ -250,6 +250,8 @@ You talk normally. Under the hood the client should run something like:
 
 `start_session` hits the DB behind the host you wired (SQLite or D1). A seed or blank local triggers bootstrap; a personalized local resumes. Other scopes may already contain history. For checkpoints, `update_context({ session_id, scope: "desk", context: "", session_note: "new: …" })` saves a handoff without closing the session. The agent handles `session_id`; the human does not.
 
+OpenPortable is a memory mechanism, not an automatic journal. A skill file or home-grown agent must explicitly call `start_session`, save checkpoints, and `finish_session`. If those calls are never made, nothing is stored and the next client has nothing to resume. Put the calls in the skill, system prompt, or embedding `instructions`.
+
 ---
 
 ## How memory works
@@ -283,7 +285,7 @@ You talk normally. Under the hood the client should run something like:
 | `learn_workflow` | Bind/reload a skill using `session_id`; does not extend expiry |
 | `finish_session` | Save a final handoff and close `session_id` |
 | `update_context` | Requires `session_id`. Write memory. Optional `session_note` (`new:` / `rewrite:` / `!`) |
-| `collapse_context` | Requires `session_id`. Prune session retention / archived noise |
+| `collapse_context` | Requires `session_id`. Prune `_session` retention / wrap archived noise |
 | `get_skill` / `update_skill` | Read or author skills by id |
 | `get_doc` / `update_doc` | Read or author docs; updates require `session_id` |
 | `ping` | Health check |

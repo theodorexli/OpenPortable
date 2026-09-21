@@ -1,6 +1,6 @@
 # Client instructions
 
-**Happy path:** plug OpenPortable MCP in and talk. You never type tool names. The client must call the gate itself: unlock with `start_session`, obey `next_action`, hand off before stopping.
+**Happy path:** plug OpenPortable MCP in and talk. You never type tool names. The client must call the gate itself: unlock with `start_session`, obey `next_action`, hand off before stopping. OpenPortable is persistent memory, not an automatic journal — skills and custom agents have to invoke these calls.
 
 **Fallback:** if a client ignores MCP `instructions`, paste the block below into standing rules (Cursor User Rules, Claude project instructions, Codex `AGENTS.md`, etc.).
 

@@ -49,6 +49,32 @@ describe("session notes", () => {
     assert.match(entries[1]!, /beta/)
   })
 
+  it("rewrite: updates only the originating session's handoff", () => {
+    const first = applySessionNoteToBody("", "alpha", {
+      sessionId: "sess-a",
+      localId: "desk",
+      at: "2026-09-17T10:00:00.000Z",
+    })
+    const both = applySessionNoteToBody(first, "beta", {
+      sessionId: "sess-b",
+      localId: "other",
+      at: "2026-09-17T11:00:00.000Z",
+    })
+    const rewritten = applySessionNoteToBody(both, "rewrite: alpha-fixed", {
+      sessionId: "sess-a",
+      localId: "desk",
+      at: "2026-09-17T12:00:00.000Z",
+    })
+    const entries = rewritten.split("\n").filter((l) => l.startsWith("- `"))
+    assert.equal(entries.length, 2)
+    assert.match(entries[0]!, /\[#sess-a\]/)
+    assert.match(entries[0]!, /alpha-fixed/)
+    assert.doesNotMatch(entries[0]!, /beta/)
+    assert.match(entries[1]!, /\[#sess-b\]/)
+    assert.match(entries[1]!, /beta/)
+    assert.doesNotMatch(entries[1]!, /alpha-fixed/)
+  })
+
   it("trims by retention days", () => {
     const now = new Date()
     const old = new Date(now)

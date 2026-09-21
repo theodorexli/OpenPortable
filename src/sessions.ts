@@ -162,7 +162,7 @@ export class OpenPortSessions {
   async note(session: WorkflowSession, note: string) {
     await logMcpSessionActivity(this.store, {
       tool: "session", summary: `handoff ${session.local}`, localId: session.local,
-      sessionNote: note, ok: true, retentionDays: this.config.sessionRetentionDays,
+      sessionId: session.id, sessionNote: note, ok: true, retentionDays: this.config.sessionRetentionDays,
     })
   }
 }

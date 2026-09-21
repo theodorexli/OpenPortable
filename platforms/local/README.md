@@ -202,9 +202,9 @@ Zip / directory contents:
 - `context/*.md`
 - `skills/*.md`
 - `docs/*.md`
-- `manifest.json`
+- `manifest.json` (includes a filename → original id map)
 
-Import upserts by id. It does not delete rows that exist only in the database.
+Filenames are percent-encoded so ids like `team/review` and `team_review` stay distinct. Import prefers the manifest map, then decodes the filename. Import upserts by id. It does not delete rows that exist only in the database.
 
 ---
 
@@ -218,6 +218,8 @@ Import upserts by id. It does not delete rows that exist only in the database.
 | `OPENPORT_WRITE_GUARDS` | `strict` | `strict` or `relaxed` |
 | `OPENPORT_SEED` | unset | Set to `1` / `true` to reseed on start |
 | `OPENPORT_MCP_KEY` | unset | If set, HTTP requires `Authorization: Bearer …` or `X-OpenPort-Mcp-Key` |
+
+HTTP listens on `127.0.0.1` only. CORS/Origin are left open so local clients can connect; that is not the auth boundary. Prefer `local:stdio`. For a secret on the network, use Cloudflare personal mode (rotating tokens that expire), not Origin checks.
 
 Example:
 

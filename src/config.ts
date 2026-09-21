@@ -68,6 +68,7 @@ export const DEFAULT_CONFIG: OpenPortConfig = {
   title: "OpenPortable",
   version: "0.3.1",
   instructions: `OpenPortable is connected. The human just talks — you call the tools. Do not wait for them to say "start session."
+OpenPortable is persistent memory only if you write to it. Skills and custom agents must explicitly start_session, checkpoint, and finish_session — nothing is saved automatically.
 
 AT THE START of work using OpenPortable:
   start_session({ local: "desk" })

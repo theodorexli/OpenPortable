@@ -12,17 +12,41 @@ import { OpenPortStore } from "../../src/store.js"
 
 export const BACKUP_MANIFEST = "manifest.json"
 
+export type BackupRecordMap = Record<string, string>
+
 export type BackupManifest = {
-  version: 1
+  version: 1 | 2
   kind: "openport-backup"
   exportedAt: string
+  /** filename → original id, so slash-containing ids round-trip. */
+  records?: {
+    context: BackupRecordMap
+    skills: BackupRecordMap
+    docs: BackupRecordMap
+  }
+}
+
+/** Reversible filename encoding: `team/review` and `team_review` stay distinct. */
+export function encodeBackupFilename(id: string): string {
+  if (!id) throw new Error("backup record id is required")
+  const encoded = encodeURIComponent(id).replace(/[!'()*]/g, (ch) =>
+    `%${ch.charCodeAt(0).toString(16).toUpperCase()}`,
+  )
+  return `${encoded}.md`
+}
+
+export function decodeBackupFilename(filename: string): string {
+  if (!filename.toLowerCase().endsWith(".md")) {
+    throw new Error(`not a backup markdown file: ${filename}`)
+  }
+  return decodeURIComponent(filename.slice(0, -3))
 }
 
 async function dumpTable(
   db: SqlDatabase,
   table: "context" | "mcp_skills" | "mcp_docs",
   dir: string,
-): Promise<string[]> {
+): Promise<{ ids: string[]; files: BackupRecordMap }> {
   fs.mkdirSync(dir, { recursive: true })
   const rows = await db.prepare(`SELECT id, body, updated_at FROM ${table}`).all<{
     id: string
@@ -30,25 +54,31 @@ async function dumpTable(
     updated_at: string
   }>()
   const ids: string[] = []
+  const files: BackupRecordMap = {}
   for (const row of rows.results ?? []) {
-    const safe = row.id.replace(/[/\\]/g, "_")
-    fs.writeFileSync(path.join(dir, `${safe}.md`), row.body ?? "", "utf8")
+    const filename = encodeBackupFilename(row.id)
+    if (files[filename] && files[filename] !== row.id) {
+      throw new Error(`backup filename collision: ${filename}`)
+    }
+    fs.writeFileSync(path.join(dir, filename), row.body ?? "", "utf8")
+    files[filename] = row.id
     ids.push(row.id)
   }
-  return ids
+  return { ids, files }
 }
 
 async function loadTable(
   db: SqlDatabase,
   table: "context" | "mcp_skills" | "mcp_docs",
   dir: string,
+  idByFile?: BackupRecordMap,
 ): Promise<number> {
   if (!fs.existsSync(dir)) return 0
   const files = fs.readdirSync(dir).filter((f) => f.endsWith(".md"))
   const now = new Date().toISOString()
   let n = 0
   for (const file of files) {
-    const id = file.replace(/\.md$/, "")
+    const id = idByFile?.[file] ?? decodeBackupFilename(file)
     const body = fs.readFileSync(path.join(dir, file), "utf8")
     await db
       .prepare(
@@ -78,12 +108,17 @@ export async function exportToDirectory(
   const skills = await dumpTable(db, "mcp_skills", path.join(dir, "skills"))
   const docs = await dumpTable(db, "mcp_docs", path.join(dir, "docs"))
   const manifest: BackupManifest = {
-    version: 1,
+    version: 2,
     kind: "openport-backup",
     exportedAt: new Date().toISOString(),
+    records: {
+      context: context.files,
+      skills: skills.files,
+      docs: docs.files,
+    },
   }
   fs.writeFileSync(path.join(dir, BACKUP_MANIFEST), JSON.stringify(manifest, null, 2))
-  return { dir, context, skills, docs }
+  return { dir, context: context.ids, skills: skills.ids, docs: docs.ids }
 }
 
 export type ImportDirectoryResult = {
@@ -97,15 +132,17 @@ export async function importFromDirectory(
   dir: string,
 ): Promise<ImportDirectoryResult> {
   const manifestPath = path.join(dir, BACKUP_MANIFEST)
+  let records: BackupManifest["records"]
   if (fs.existsSync(manifestPath)) {
     const raw = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as BackupManifest
     if (raw.kind !== "openport-backup") {
       throw new Error(`Not an OpenPortable backup (kind=${String(raw.kind)})`)
     }
+    records = raw.records
   }
-  const context = await loadTable(db, "context", path.join(dir, "context"))
-  const skills = await loadTable(db, "mcp_skills", path.join(dir, "skills"))
-  const docs = await loadTable(db, "mcp_docs", path.join(dir, "docs"))
+  const context = await loadTable(db, "context", path.join(dir, "context"), records?.context)
+  const skills = await loadTable(db, "mcp_skills", path.join(dir, "skills"), records?.skills)
+  const docs = await loadTable(db, "mcp_docs", path.join(dir, "docs"), records?.docs)
   return { context, skills, docs }
 }
 

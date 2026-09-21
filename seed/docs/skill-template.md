@@ -1,17 +1,19 @@
 # Skill template
 
-Copy into `update_skill`.
+Copy into `update_skill`. OpenPortable is a memory mechanism — a skill must invoke it. If these calls are missing, nothing is stored or resumed.
 
 ```markdown
 # Skill: your-skill-id
 
-**Hard:** Use `get_context()` to discover available scopes, then load memory with `get_context({ scope: "your-local" })`. Must-load scopes are included automatically; at most one local per load.
+**Hard:** Call OpenPortable yourself. Prefer `start_session({ local: "your-local" })` (loads memory, binds this skill, returns session_id). Must-load scopes are included automatically; at most one local per load.
 
 ## Steps
 
-1. get_context({ scopes: ["_important", "_protected", "your-local"] })
-2. Do the work
-3. Save handoff via session_note or update_context
+1. start_session({ local: "your-local", skill: "your-skill-id" })
+   — keep session_id; obey next_action
+2. Do the work using loaded prefs / open threads / _session
+3. Checkpoints while continuing: update_context({ session_id, scope: "your-local", context: "", session_note: "new: …" })
+4. finish_session({ session_id, session_note: "…what the next client needs…" })
 ```
 
 See also seeded skill `resume-work` for a full day-one pattern.

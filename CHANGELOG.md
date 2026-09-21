@@ -3,6 +3,10 @@
 ## Unreleased
 
 - Bare `get_context()` now lists available scope IDs, kinds, and update timestamps without loading memory bodies. Empty selectors also discover scopes; scoped reads retain must-load scopes and the one-local limit.
+- `collapse_context` prunes session retention only on `_session`; ordinary markdown with code-fence bullets is left intact
+- Context, doc, and skill writes use compare-and-swap so concurrent appends no longer drop each other
+- Session handoffs carry a stable session id, so `rewrite:` updates that session's line instead of whoever wrote last
+- Local backups encode ids reversibly and record them in `manifest.json`, so `team/review` and `team_review` both survive export/import
 
 ## [0.3.1] — 2026-09-18
 

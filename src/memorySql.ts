@@ -45,7 +45,7 @@ export class MemorySqlDatabase implements SqlDatabase {
           self.tables[table].set(id, { id, body: String(bound[0]), updated_at: String(bound[1]) })
           return { id } as T
         }
-        if (/^INSERT\b/i.test(sql) && /WHERE context.body = \? RETURNING id/i.test(sql)) {
+        if (/^INSERT\b/i.test(sql) && /WHERE \w+\.body = \? RETURNING id/i.test(sql)) {
           const id = String(bound[0])
           const previous = self.tables[table].get(id)
           if (previous && previous.body !== bound[3]) return null

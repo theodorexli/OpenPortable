@@ -5,7 +5,7 @@
 1. Install: `npx -y openportable` (or clone + `npm run local:stdio`)
 2. Point the client at OpenPortable MCP
 3. Talk — first time (seed/blank) bootstraps prefs; later resumes + handoffs
-4. Optional: `update_skill` then clients can `start_session({ skill: "your-id" })`
+4. Optional: `update_skill` then clients can `start_session({ skill: "your-id" })`. Skills and custom agents must call `start_session` / checkpoints / `finish_session` — OpenPortable does not journal automatically.
 5. Fallback only: paste **`client-instructions`** if the client ignores MCP `instructions`
 6. Optional: `npm run local:export` for backup / a new machine
 

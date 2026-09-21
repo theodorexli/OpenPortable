@@ -2,7 +2,7 @@
 
 **Whiteboard — one substantive note per work session.** Decisions and handoffs for the next client. Not tool noise.
 
-**Add** merges into the current (latest) session line. Prefix `rewrite:` / `!` to replace it, or `new:` to start a fresh session line. Keep durable prefs in `_global` or local scopes.
+**Add** merges into this work session's line. Prefix `rewrite:` / `!` to replace it, or `new:` to start a fresh session line. Keep durable prefs in `_global` or local scopes.
 
 Retention: last **14** days of notes (hard cap 500 lines) — forever is not practical for context windows.
 

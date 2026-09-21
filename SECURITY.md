@@ -25,4 +25,6 @@ OpenPortable is a memory MCP server you host yourself. Threats we care about mos
 - Prompt-injection via stored markdown that tricks a client into leaking secrets
 - Write-guard bypass that lets live dumps overwrite durable scopes
 
+Local Node HTTP binds `127.0.0.1` and leaves CORS/Origin open on purpose so loopback MCP clients can connect. That is not the auth boundary. Prefer stdio. Optional `OPENPORT_MCP_KEY` is a loopback shared secret. Networked access is the Cloudflare host: `none` is bare `/mcp`, `personal` uses rotating tokens that expire, `full` is the operator's gateway.
+
 Out of scope for this project (report upstream if relevant): bugs only in a specific LLM client; issues that require the operator to paste secrets into memory on purpose; and anything in domain apps / agent orchestration built on top of OpenPortable.

@@ -9,7 +9,7 @@
 | `learn_workflow` | Bind/reload a skill using `session_id`; does not extend session expiry |
 | `finish_session` | Save `session_note` and close `session_id` |
 | `update_context` | Write durable memory; optional `session_note` (`new:` / `rewrite:` / `!`). Empty `context` + `session_note` = handoff-only |
-| `collapse_context` | Prune session retention / wrap fat `## Archived` |
+| `collapse_context` | Prune `_session` retention / wrap fat `## Archived` (ordinary markdown is not a session log) |
 
 ## Author
 

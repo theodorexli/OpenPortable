@@ -78,4 +78,42 @@ describe("local backup export/import", () => {
     const skill = await store3.getSkill("resume-work")
     assert.ok(skill?.body.includes("resume-work"))
   })
+
+  it("round-trips slash-containing ids without colliding on underscores", async () => {
+    const schemaSql = fs.readFileSync(path.join(repoRoot, "schema.sql"), "utf8")
+    const dbPath = path.join(os.tmpdir(), `openport-backup-ids-${Date.now()}.sqlite`)
+    const sql = openFileSqlDatabase({ dbPath, schemaSql })
+    after(() => {
+      sql.close()
+      fs.rmSync(dbPath, { force: true })
+    })
+
+    const store = new OpenPortStore(sql)
+    await store.updateContext({ scope: "team/review", context: "# Slash\n", mode: "replace" })
+    await store.updateContext({ scope: "team_review", context: "# Underscore\n", mode: "replace" })
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openport-bak-ids-"))
+    after(() => fs.rmSync(dir, { recursive: true, force: true }))
+    const exported = await exportToDirectory(sql, dir)
+    assert.ok(exported.context.includes("team/review"))
+    assert.ok(exported.context.includes("team_review"))
+    assert.ok(fs.existsSync(path.join(dir, "context", "team%2Freview.md")))
+    assert.ok(fs.existsSync(path.join(dir, "context", "team_review.md")))
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8")) as {
+      records: { context: Record<string, string> }
+    }
+    assert.equal(manifest.records.context["team%2Freview.md"], "team/review")
+    assert.equal(manifest.records.context["team_review.md"], "team_review")
+
+    const dbPath2 = path.join(os.tmpdir(), `openport-backup-ids2-${Date.now()}.sqlite`)
+    const sql2 = openFileSqlDatabase({ dbPath: dbPath2, schemaSql })
+    after(() => {
+      sql2.close()
+      fs.rmSync(dbPath2, { force: true })
+    })
+    await importFromDirectory(sql2, dir)
+    const store2 = new OpenPortStore(sql2)
+    assert.match((await store2.getContextRow("team/review"))?.body ?? "", /Slash/)
+    assert.match((await store2.getContextRow("team_review"))?.body ?? "", /Underscore/)
+  })
 })

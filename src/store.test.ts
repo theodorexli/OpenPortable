@@ -38,6 +38,40 @@ describe("OpenPortStore", () => {
     assert.equal(docs.some((d) => d.id === "tools"), true)
   })
 
+  it("keeps concurrent appends to context, docs, and skills", async () => {
+    const store = new OpenPortStore(new MemorySqlDatabase())
+    await store.updateContext({ scope: "x", context: "start", mode: "replace" })
+    await store.updateDoc("tools", "doc-start")
+    await store.updateSkill("triage", "skill-start")
+
+    await Promise.all([
+      store.updateContext({ scope: "x", context: "alpha", mode: "append" }),
+      store.updateContext({ scope: "x", context: "beta", mode: "append" }),
+    ])
+    const context = (await store.getContextRow("x"))?.body ?? ""
+    assert.match(context, /start/)
+    assert.match(context, /alpha/)
+    assert.match(context, /beta/)
+
+    await Promise.all([
+      store.updateDoc("tools", "doc-a", "append"),
+      store.updateDoc("tools", "doc-b", "append"),
+    ])
+    const doc = (await store.getDoc("tools"))?.body ?? ""
+    assert.match(doc, /doc-start/)
+    assert.match(doc, /doc-a/)
+    assert.match(doc, /doc-b/)
+
+    await Promise.all([
+      store.updateSkill("triage", "skill-a", "append"),
+      store.updateSkill("triage", "skill-b", "append"),
+    ])
+    const skill = (await store.getSkill("triage"))?.body ?? ""
+    assert.match(skill, /skill-start/)
+    assert.match(skill, /skill-a/)
+    assert.match(skill, /skill-b/)
+  })
+
   it("full getContext separates reserved vs local", async () => {
     const store = new OpenPortStore(new MemorySqlDatabase())
     await store.updateContext({ scope: "_global", context: "# Global\n", mode: "replace" })

@@ -1,8 +1,9 @@
 /**
  * Collapse = summarize noise; never wipe prior session notes wholesale.
- * Prunes session retention and wraps oversized ## Archived blocks.
+ * Prunes `_session` retention only; wraps oversized ## Archived blocks on any scope.
  */
 
+import { SESSION_CONTEXT_ID } from "./config.js"
 import {
   DEFAULT_SESSION_RETENTION_DAYS,
   sessionHeader,
@@ -19,12 +20,15 @@ export type ContextCollapseResult = {
 export function collapseContextBody(
   body: string,
   retentionDays: number = DEFAULT_SESSION_RETENTION_DAYS,
+  options?: { scope?: string },
 ): ContextCollapseResult {
   const before = body.length
   const actions: string[] = []
   let next = body
 
-  if (body.includes("- `")) {
+  // Retention parsing is for `_session` records only — ordinary markdown can
+  // contain `- \`code\`` bullets without being a handoff log.
+  if (options?.scope === SESSION_CONTEXT_ID && body.includes("- `")) {
     const trimmed = trimSessionLogBody(
       body.startsWith("#") ? body : `${sessionHeader(retentionDays)}${body}`,
       retentionDays,
