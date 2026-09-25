@@ -19,6 +19,8 @@ export type OpenPortConfig = {
   durableScopes: readonly string[]
   /** Scopes the client should prefer loading first. */
   mustLoadScopes: readonly string[]
+  /** Scopes included on every scoped load. They do not count as locals. */
+  sharedScopes: readonly string[]
   /** How many days of `_session` notes to keep (context budget). */
   sessionRetentionDays: number
   /** strict = headings + live-state bans; relaxed = light checks only. */
@@ -49,6 +51,7 @@ export const DEFAULT_CONFIG: OpenPortConfig = {
   protectedScopes: [GLOBAL_CONTEXT_ID, IMPORTANT_CONTEXT_ID, PROTECTED_CONTEXT_ID],
   durableScopes: [GLOBAL_CONTEXT_ID, IMPORTANT_CONTEXT_ID, PROTECTED_CONTEXT_ID],
   mustLoadScopes: [IMPORTANT_CONTEXT_ID, PROTECTED_CONTEXT_ID],
+  sharedScopes: [],
   sessionRetentionDays: 14,
   writeGuards: "strict",
   knownTools: [
@@ -66,7 +69,7 @@ export const DEFAULT_CONFIG: OpenPortConfig = {
   ],
   name: "openportable",
   title: "OpenPortable",
-  version: "0.3.1",
+  version: "0.3.2",
   instructions: `OpenPortable is connected. The human just talks — you call the tools. Do not wait for them to say "start session."
 OpenPortable is persistent memory only if you write to it. Skills and custom agents must explicitly start_session, checkpoint, and finish_session — nothing is saved automatically.
 
@@ -84,7 +87,7 @@ BEFORE you stop or they switch clients:
   For checkpoints while continuing: update_context({ session_id, scope: "desk", context: "", session_note: "new: …" }).
 
 GATE: protected calls reject missing/expired session IDs, wrong locals, and changed skills. Follow next_action on gate errors.
-CONTRACT: get_context() lists available scopes (IDs, kinds, timestamps; no memory bodies). Choose a local, then use start_session. Scoped reads include must-load scopes and allow ≤1 local per load.
+CONTRACT: get_context() lists available scopes (IDs, kinds, timestamps; no memory bodies). Choose a local, then use start_session. Scoped reads include must-load and shared scopes. A scope shorthand allows one local. An explicit scopes list may name several locals.
 Prompts: "resume" / "handoff". Fallback paste: get_doc({ doc: "client-instructions" }).
 `,
 }

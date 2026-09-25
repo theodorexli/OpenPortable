@@ -101,8 +101,8 @@ describe("MCP tools", () => {
           arguments: { scopes: ["desk", "other"] },
         }),
       )
-      assert.equal(many.isError, true)
-      assert.match(String(many.data.error), /at most one local/)
+      assert.equal(many.isError, false)
+      assert.deepEqual(many.data.scopes, ["_important", "_protected", "desk", "other"])
     })
   })
 

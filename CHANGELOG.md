@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- Bare `get_context()` now lists available scope IDs, kinds, and update timestamps without loading memory bodies. Empty selectors also discover scopes; scoped reads retain must-load scopes and the one-local limit.
+## [0.3.2] — 2026-09-25
+
+- Scoped loads include configured shared scopes, which do not count as locals. A scope shorthand still allows one local. An explicit `scopes` list may name several locals.
+- Bare `get_context()` now lists available scope IDs, kinds, and update timestamps without loading memory bodies. Empty selectors also discover scopes; scoped reads retain must-load scopes.
 - `collapse_context` prunes session retention only on `_session`; ordinary markdown with code-fence bullets is left intact
 - Context, doc, and skill writes use compare-and-swap so concurrent appends no longer drop each other
 - Session handoffs carry a stable session id, so `rewrite:` updates that session's line instead of whoever wrote last

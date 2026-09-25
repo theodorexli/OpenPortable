@@ -56,6 +56,7 @@ export class OpenPortSessions {
     const resolved = resolveLoadScopes({
       scope: local, include_session: true, include_global: input.include_global,
       mustLoadScopes: this.config.mustLoadScopes,
+      sharedScopes: this.config.sharedScopes,
     })
     if (!resolved.ok) throw new Error(resolved.error)
     const data = await this.store.getContextForScopes(resolved.scopes)

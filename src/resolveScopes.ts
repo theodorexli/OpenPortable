@@ -8,6 +8,7 @@ export type ResolveLoadScopesInput = {
   include_session?: boolean
   include_global?: boolean
   mustLoadScopes: readonly string[]
+  sharedScopes?: readonly string[]
 }
 
 export type ResolveLoadScopesResult =
@@ -21,12 +22,15 @@ function isLocal(id: string): boolean {
 /**
  * Enforce the load contract for get_context:
  * - no non-empty selector returns a scope index (no bodies)
- * - scoped loads always include must-load
- * - at most one local scope
+ * - scoped loads always include must-load and shared scopes
+ * - a scope shorthand allows one local
+ * - an explicit scopes list may name several locals
+ * - shared scopes do not count as locals
  */
 export function resolveLoadScopes(input: ResolveLoadScopesInput): ResolveLoadScopesResult {
   const fromScopes = (input.scopes ?? []).map((s) => s.trim()).filter(Boolean)
   const single = input.scope?.trim()
+  const shared = new Set((input.sharedScopes ?? []).map((id) => id.trim()).filter(Boolean))
 
   if (!fromScopes.length && !single) {
     return { ok: true, mode: "index", scopes: [] }
@@ -41,16 +45,18 @@ export function resolveLoadScopes(input: ResolveLoadScopesInput): ResolveLoadSco
   }
 
   for (const id of input.mustLoadScopes) push(id.trim())
+  for (const id of shared) push(id)
   for (const id of fromScopes) push(id)
   if (single) push(single)
   if (input.include_session) push(SESSION_CONTEXT_ID)
   if (input.include_global) push(GLOBAL_CONTEXT_ID)
 
-  const locals = list.filter(isLocal)
-  if (locals.length > 1) {
+  const countsAsLocal = (id: string) => isLocal(id) && !shared.has(id)
+  const locals = list.filter(countsAsLocal)
+  if (!fromScopes.length && locals.length > 1) {
     return {
       ok: false,
-      error: `at most one local scope allowed (got ${locals.length}: ${locals.join(", ")}). Load one local id per get_context call.`,
+      error: `a scope shorthand allows one local (got ${locals.length}: ${locals.join(", ")}). Pass scopes to load several locals.`,
     }
   }
 

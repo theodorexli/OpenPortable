@@ -51,7 +51,7 @@ export function createOpenPortServer(options: CreateOpenPortServerOptions): McpS
     {
       name: config.name ?? "openport",
       title: config.title ?? "OpenPortable",
-      version: config.version ?? "0.3.0",
+      version: config.version ?? "0.3.2",
       description: "Portable shared memory — scoped load, skills, session handoffs.",
     },
     { instructions: config.instructions },
@@ -138,7 +138,7 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
     "get_context",
     {
       description:
-        "Discover available scopes with get_context(), or load memory by scope/scopes (must-load auto-included + ≤1 local). The index returns IDs, kinds, and timestamps only. Prefer start_session once you know the local.",
+        "Discover available scopes with get_context(), or load memory by scope/scopes (must-load and shared scopes auto-included). A scope shorthand allows one local. An explicit scopes list may name several locals. The index returns IDs, kinds, and timestamps only. Prefer start_session once you know the local.",
       inputSchema: z.object({
         scope: z
           .string()
@@ -165,6 +165,7 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
         include_session,
         include_global,
         mustLoadScopes: config.mustLoadScopes,
+        sharedScopes: config.sharedScopes,
       })
       if (!resolved.ok) return errorResult(resolved.error)
       if (resolved.mode === "index") {
