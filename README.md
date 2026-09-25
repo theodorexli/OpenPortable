@@ -79,7 +79,7 @@ OpenPortable keeps those records outside any single client. Durable truth lives 
 
 ## What you get
 
-- **Scoped load contract.** `get_context()` lists available scopes without memory bodies. Explicit scoped reads include must-load scopes. At most one **local** scope per memory load.
+- **Scoped load contract.** `get_context()` lists available scopes without memory bodies. Scoped reads include must-load scopes and any configured shared scopes. A `scope` shorthand allows one local; an explicit `scopes` list may name several. Shared scopes do not count as locals.
 - **One-shot start.** `start_session` loads memory, binds a skill (`bootstrap` / `resume-work` / your id), and returns `session_id`, expiry, and `next_action`.
 - **Skills by id.** Author with `update_skill`; bind with `start_session({ skill })` or `learn_workflow`. Unchanged skills can skip the body via hash.
 - **Enforced gate.** Missing/expired sessions, wrong locals, or changed skills return a corrective `next_action` before protected tools execute.
@@ -270,9 +270,9 @@ OpenPortable is a memory mechanism, not an automatic journal. A skill file or ho
 ### Load contract (server-enforced)
 
 1. `get_context()` returns an index of stored scopes: `id`, `kind` (`local` or `reserved`), and `updatedAt`. It does not load memory bodies or open a session. Empty or whitespace-only selectors also return the index; `include_session` / `include_global` apply only when a non-empty scope is selected.
-2. Use `scopes=` or `scope=` to load memory, or `start_session({ local: "<id>" })` to begin work.
-3. Must-load scopes get merged into scoped reads; defaults are `_important` and `_protected`. Embedded hosts can configure this list.
-4. At most one local scope per memory load; the index can list all locals. Zero locals is fine if you only need standing rules.
+2. Use `scope=` for one local, or `scopes=` to load several locals. `start_session({ local: "<id>" })` begins work on one local.
+3. Must-load scopes and configured shared scopes are merged into every scoped read. Defaults must-load `_important` and `_protected`. Shared scopes default to none. Embedded hosts set both lists; shared scopes do not count as locals.
+4. A scope shorthand allows one local. An explicit `scopes` list may name several. The index can list all locals. Zero locals is fine if you only need standing rules.
 5. Pull `_session` / `_global` with flags or by listing them. Don't reload every local "just in case."
 6. Persist durable truth with `update_context`. Use short `session_note` summaries for handoffs; keep live domain state in its source system.
 
@@ -280,17 +280,17 @@ OpenPortable is a memory mechanism, not an automatic journal. A skill file or ho
 
 | Tool | Role |
 |------|------|
-| `get_context` | Discover scopes with a bare call, or load by scope. Use `start_session` to begin work |
+| `get_context` | Discover scopes with a bare call, or load by `scope` (one local) or `scopes` (several locals). Must-load and shared scopes are included. Use `start_session` to begin work |
 | `start_session` | Load memory, bind a skill, return `session_id`, expiry, and `next_action` |
 | `learn_workflow` | Bind/reload a skill using `session_id`; does not extend expiry |
 | `finish_session` | Save a final handoff and close `session_id` |
-| `update_context` | Requires `session_id`. Write memory. Optional `session_note` (`new:` / `rewrite:` / `!`) |
-| `collapse_context` | Requires `session_id`. Prune `_session` retention / wrap archived noise |
+| `update_context` | Requires `session_id`. Write memory. Optional `session_note` (`new:` starts a line, `rewrite:` updates that session's line, `!` forces) |
+| `collapse_context` | Requires `session_id`. Prune retention only on `_session`; other markdown is left intact |
 | `get_skill` / `update_skill` | Read or author skills by id |
 | `get_doc` / `update_doc` | Read or author docs; updates require `session_id` |
 | `ping` | Health check |
 
-`update_context`, `update_doc`, `collapse_context`, and tools registered through the embedding gate require a current session. Local writes must match its local. Shared reserved scopes remain shared; `_workflow` cannot be edited through memory tools. Read tools and `update_skill` remain available before setup so a missing skill can be installed or repaired. This is workflow enforcement, not authentication or multi-user authorization.
+`update_context`, `update_doc`, `collapse_context`, and tools registered through the embedding gate require a current session. Local writes must match its local. Context, doc, and skill writes compare-and-swap, so concurrent appends do not drop each other. Shared reserved scopes remain shared; `_workflow` cannot be edited through memory tools. Read tools and `update_skill` remain available before setup so a missing skill can be installed or repaired. This is workflow enforcement, not authentication or multi-user authorization.
 
 The gate verifies recorded prerequisites, not whether a model understood or followed the skill. Stored `_protected` rules are instructions for the agent, not an authorization policy for domain actions. MCP clients vary in how they use [server instructions](https://blog.modelcontextprotocol.io/posts/2025-11-03-using-server-instructions/).
 
@@ -424,7 +424,7 @@ npm run local:export                 # → platforms/local/data/openport-backup.
 npm run local:import -- ./backup.zip
 ```
 
-The zip is markdown for scopes, skills, and docs. Handy when you move machines.
+The zip is markdown for scopes, skills, and docs. Ids are encoded reversibly and recorded in `manifest.json`, so `team/review` and `team_review` both survive export/import.
 
 ---
 
