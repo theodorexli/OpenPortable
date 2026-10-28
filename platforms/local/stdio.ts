@@ -14,7 +14,7 @@ async function main() {
   const server = createLocalMcpServer(runtime)
   const transport = new StdioServerTransport()
   await server.connect(transport)
-  console.error(`OpenPortable local stdio`)
+  console.error(`OpenPortable local stdio${runtime.config.codeMode ? " (code mode)" : ""}`)
   console.error(`  db ${runtime.dbPath}`)
 }
 

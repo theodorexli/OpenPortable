@@ -9,6 +9,8 @@ export type WorkerEnv = {
   DB: D1Database
   OPENPORT_MCP_KEY?: string
   OPENPORT_SETTINGS_KEY?: string
+  /** 1 / true: code mode for clients that call tools from code. */
+  OPENPORT_CODE_MODE?: string
   /** Install: session whiteboard retention (days). */
   OPENPORT_SESSION_RETENTION_DAYS?: string
   /** Install: strict | relaxed */

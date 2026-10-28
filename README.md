@@ -2,13 +2,29 @@
 
 [![npm version](https://img.shields.io/npm/v/openportable.svg)](https://www.npmjs.com/package/openportable)
 
-OpenPortable is **open + portable** shared memory over [MCP](https://modelcontextprotocol.io).
-
-OpenPortable gives MCP clients and agents a shared store for memory, skills, and session handoffs. Connect them to the same database to continue from what earlier sessions saved. Run it as a standalone MCP server or embed its session and gating logic in your own MCP server.
+OpenPortable is an opinionated [MCP](https://modelcontextprotocol.io) server, written in TypeScript, that gives AI agents durable memory, reusable skills, and a session lifecycle the server enforces before memory writes and app actions. Every client connected to the same OpenPortable server (Cursor, Claude, Codex, or your own app) can continue from what earlier sessions saved. Run it on its own, or add its tools and session gate to your app's MCP server.
 
 - **License:** [MIT](./LICENSE).
 - **Security:** [SECURITY.md](./SECURITY.md).
 - **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+---
+
+## Use cases
+
+- **Build on your users' AI clients.** Your app exposes its actions as MCP tools and registers them through OpenPortable. Users connect the client they already use, and the model runs there on their plan, so your app makes no model API calls for that work. OpenPortable gives the agent your workflow as skills, the memory the task needs, and a gate that holds your tools until the agent has started a session with the right local and skill. See [Embed in another MCP](#embed-in-another-mcp).
+- **Keep your memory when you switch clients.** One OpenPortable server holds your preferences, rules, skills, and session handoffs. Start in Cursor and continue in Claude Code or Codex, on one machine with the local host or across machines with the Cloudflare host. See [Quick start](#quick-start-one-liner).
+
+## At a glance
+
+A compact summary for people and coding agents evaluating the project:
+
+- **Form:** a standalone MCP server (`npx -y openportable`, over stdio or Streamable HTTP) and a library (`registerOpenPortTools`) that adds the same tools and gate to your own MCP server.
+- **Hosts:** Node 22.13+ with SQLite by default, Cloudflare Workers with D1, or any host where you implement the `SqlDatabase` interface.
+- **Memory model:** durable markdown in named scopes. The scoped load contract loads only the scopes a task asks for, plus must-load and shared scopes. Live app data stays in your app, behind your own tools.
+- **Lifecycle:** `start_session` returns a `session_id`. Context and doc writes, plus your gated tools, require it; `finish_session` saves a handoff and closes it. Reads and skill authoring stay open.
+- **Tokens:** OpenPortable never calls a model. Agents load small slices of memory, and [code mode](#code-mode) lets clients that run code keep results out of the model's context.
+- **Not included:** per-scope permissions (every client connected to a server can read all of its scopes; the gate enforces workflow, not access), semantic or vector search, and sync between separate installs.
 
 ---
 
@@ -84,6 +100,7 @@ OpenPortable keeps those records outside any single client. Durable truth lives 
 - **Skills by id.** Author with `update_skill`; bind with `start_session({ skill })` or `learn_workflow`. Unchanged skills can skip the body via hash.
 - **Enforced gate.** Missing/expired sessions, wrong locals, or changed skills return a corrective `next_action` before protected tools execute.
 - **Reusable integration.** Attach the same tools and gate to another MCP server via `registerOpenPortTools`.
+- **Code mode (opt-in).** For clients that call MCP tools from code, tools return typed results, so a script keeps memory in variables and prints only what the model needs.
 - **Session handoffs.** `finish_session` saves a note and closes the gate; `update_context` saves checkpoints while continuing. Notes are pruned when handoffs are saved or `_session` is collapsed (default retention: 14 days).
 - **Write guards.** Configurable validation for designated durable scopes; default guards cover `_global`, `_important`, and `_protected`.
 - **Two hosts.** Same tool surface on local SQLite or Cloudflare D1.
@@ -139,6 +156,18 @@ args = ["-y", "openportable"]
 MCP instructions ask the agent to manage the session lifecycle automatically. Prompts **`resume`** / **`handoff`** provide explicit entry points when the client surfaces them; the [client instructions](./seed/docs/client-instructions.md) are a fallback for clients that need standing rules.
 
 The npm package is **`openportable`**; its executable is **`openportable`**. Use `npm install -g openportable` for a global command. To run directly from GitHub instead, use `npx -y github:theodorexli/openportable`.
+
+### Code mode
+
+Clients that [call MCP tools from code](https://www.anthropic.com/research/code-execution-with-mcp) can run OpenPortable in code mode by adding the flag to the command (or to `args` in the configs above):
+
+```bash
+npx -y openportable --code-mode
+```
+
+In code mode, every tool declares an output schema and returns `structuredContent` alongside compact JSON text. The instructions give the agent a start script that keeps the `start_session` result in a variable and prints only `session_id`, `mode`, `next_action`, the skill body (omitted when `knownHash` matches), and the memory the task needs. Gate errors are compact JSON `{ ok: false, code, error, next_action }`. Bare `get_context()` returns scope ids in `scopes` and their metadata in `index`. Without the flag, results and instructions are unchanged.
+
+`OPENPORT_CODE_MODE=1` does the same for any host, including `npm run local` and the Cloudflare Worker.
 
 ---
 
@@ -331,6 +360,8 @@ The wrapper adds `session_id` to the tool schema. A blocked call tells the agent
 
 The optional `handoff` callback saves a short, application-authored note after a successful tool result. It never copies raw results automatically. If the action succeeds but saving fails, the result warns the agent to retry only the handoff. Without the callback, the client uses checkpoints or `finish_session`. Attach OpenPortable's instructions when constructing your server; registration does not overwrite existing instructions.
 
+For [code mode](#code-mode), pass `config: { codeMode: true }` to `registerOpenPortTools` and start your instructions from `resolveConfig({ codeMode: true }).instructions`. A gated tool can declare an `outputSchema` and return matching `structuredContent`; the schema is listed to clients only in code mode.
+
 For non-MCP hosts, `OpenPortSessions` exposes the same `start`, `require`, `learn`, and `finish` lifecycle. `OpenPortStore` is a trusted low-level storage API; its direct methods do not enforce MCP write guards. Application authentication stays with the host.
 
 Install the library with `npm install openportable` (or `npm install github:theodorexli/openportable` to use the repository). The package exports compiled ESM and TypeScript declarations; `npm run build` builds them from a checkout.
@@ -407,6 +438,7 @@ Set these in `platforms/cloudflare/wrangler.toml` under `[vars]`:
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
+| `OPENPORT_CODE_MODE` | unset | `1` / `true`: [code mode](#code-mode) for clients that call tools from code |
 | `OPENPORT_SESSION_RETENTION_DAYS` | `14` | How long to keep `_session` notes |
 | `OPENPORT_WRITE_GUARDS` | `strict` | `strict` = headings + live-state bans; `relaxed` = light checks |
 
@@ -463,6 +495,7 @@ npm run dev       # Cloudflare local Worker on :8788
 | MCP tools | Load-contract enforcement, guards, `learn_workflow` cache, `ping` |
 | Local host | File SQLite, stateless HTTP persistence, concurrent handoffs, backup round-trip |
 | Embedding / schema | Gated domain tools, automatic handoffs, migration profiles |
+| Code mode | Typed results for every tool, compact gate errors, default mode unchanged |
 
 D1/Wrangler integration is manual via `npm run dev` / deploy.
 

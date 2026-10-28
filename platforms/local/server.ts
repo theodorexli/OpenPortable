@@ -100,6 +100,7 @@ async function main() {
           ok: true,
           host: "local",
           mcp: "/mcp",
+          codeMode: runtime.config.codeMode,
           db: runtime.dbPath,
         }),
       )
@@ -127,7 +128,7 @@ async function main() {
   })
 
   server.listen(PORT, "127.0.0.1", () => {
-    console.log(`OpenPortable local host`)
+    console.log(`OpenPortable local host${runtime.config.codeMode ? " (code mode)" : ""}`)
     console.log(`  mcp  http://127.0.0.1:${PORT}/mcp`)
     console.log(`  db   ${runtime.dbPath}`)
   })

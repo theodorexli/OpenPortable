@@ -12,7 +12,8 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "rootDir": "."
+    "rootDir": ".",
+    "paths": { "openportable": ["./src/index.ts"] }
   },
   "include": ["src/**/*", "platforms/cloudflare/**/*", "platforms/local/**/*", "examples/**/*"]
 }

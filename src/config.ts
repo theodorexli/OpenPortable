@@ -13,6 +13,8 @@
 export type WriteGuardsMode = "strict" | "relaxed"
 
 export type OpenPortConfig = {
+  /** Clients call tools from code: typed structured results, compact JSON, code-first instructions. */
+  codeMode: boolean
   /** Scopes with hard write guards. */
   protectedScopes: readonly string[]
   /** Scopes that reject live-state dumps. */
@@ -48,6 +50,7 @@ export const RESERVED_SCOPE_IDS = [
 ] as const
 
 export const DEFAULT_CONFIG: OpenPortConfig = {
+  codeMode: false,
   protectedScopes: [GLOBAL_CONTEXT_ID, IMPORTANT_CONTEXT_ID, PROTECTED_CONTEXT_ID],
   durableScopes: [GLOBAL_CONTEXT_ID, IMPORTANT_CONTEXT_ID, PROTECTED_CONTEXT_ID],
   mustLoadScopes: [IMPORTANT_CONTEXT_ID, PROTECTED_CONTEXT_ID],
@@ -69,7 +72,7 @@ export const DEFAULT_CONFIG: OpenPortConfig = {
   ],
   name: "openportable",
   title: "OpenPortable",
-  version: "0.3.2",
+  version: "0.3.3",
   instructions: `OpenPortable is connected. The human just talks — you call the tools. Do not wait for them to say "start session."
 OpenPortable is persistent memory only if you write to it. Skills and custom agents must explicitly start_session, checkpoint, and finish_session — nothing is saved automatically.
 
@@ -92,12 +95,36 @@ Prompts: "resume" / "handoff". Fallback paste: get_doc({ doc: "client-instructio
 `,
 }
 
+export const CODE_MODE_INSTRUCTIONS = `OpenPortable is connected in code mode. The human just talks — you call its tools from code, using the names your code API exposes. Results are typed objects: keep them in variables and print only what the model needs.
+OpenPortable is persistent memory only if you write to it. Skills and custom agents must explicitly start_session, checkpoint, and finish_session — nothing is saved automatically.
+
+AT THE START of work, in one script:
+  const s = await start_session({ local: "desk" })
+  console.log(s.session_id, s.mode, s.next_action)
+  if (s.skill.body) console.log(s.skill.body) // the skill to follow; omitted when knownHash matches
+  // Print only the memory this task needs (e.g. the local's open threads), not the whole result.
+  Later scripts reuse the printed session_id. Handle it yourself; never ask the human to manage it.
+  If mode is "bootstrap", interview the human and rewrite the local BEFORE other work.
+
+BEFORE you stop or they switch clients, in one script:
+  await update_context({ session_id, scope: "desk", context: "…" }) // only if durable prefs changed
+  await finish_session({ session_id, session_note: "…what the next session needs…" })
+  For checkpoints while continuing: update_context({ session_id, scope: "desk", context: "", session_note: "new: …" }).
+
+GATE: protected calls fail with JSON { ok: false, code, error, next_action } for missing/expired session IDs, wrong locals, and changed skills. Follow next_action.
+CONTRACT: get_context() returns index (scope IDs, kinds, timestamps; no memory bodies). Scoped reads include must-load and shared scopes. A scope shorthand allows one local. An explicit scopes list may name several locals.
+`
+
 /** Env / wrangler [vars] → config overrides (install skill writes these). */
 export function configFromEnv(env: {
+  OPENPORT_CODE_MODE?: string
   OPENPORT_SESSION_RETENTION_DAYS?: string
   OPENPORT_WRITE_GUARDS?: string
 }): Partial<OpenPortConfig> {
   const out: Partial<OpenPortConfig> = {}
+  const codeMode = env.OPENPORT_CODE_MODE?.trim().toLowerCase()
+  if (codeMode === "1" || codeMode === "true") out.codeMode = true
+  else if (codeMode === "0" || codeMode === "false") out.codeMode = false
   const daysRaw = env.OPENPORT_SESSION_RETENTION_DAYS?.trim()
   if (daysRaw) {
     const days = Number(daysRaw)
@@ -113,5 +140,11 @@ export function configFromEnv(env: {
 }
 
 export function resolveConfig(partial?: Partial<OpenPortConfig>): OpenPortConfig {
-  return { ...DEFAULT_CONFIG, ...partial }
+  const codeMode = partial?.codeMode ?? DEFAULT_CONFIG.codeMode
+  return {
+    ...DEFAULT_CONFIG,
+    instructions: codeMode ? CODE_MODE_INSTRUCTIONS : DEFAULT_CONFIG.instructions,
+    ...partial,
+    codeMode,
+  }
 }

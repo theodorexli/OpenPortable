@@ -1,12 +1,12 @@
 /**
- * Run from a checkout: npm run build && npx tsx examples/embedded.ts
- * Connect as a stdio MCP. OPENPORT_DB selects the persistent local database.
+ * Run from a checkout: npx tsx examples/embedded.ts ("openportable" resolves to src/ via tsconfig paths).
+ * Connect as a stdio MCP. OPENPORT_DB selects the persistent local database; OPENPORT_CODE_MODE=1 selects code mode.
  * Substitute your own SqlDatabase adapter and domain handler in an application.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
-import { DEFAULT_CONFIG, registerOpenPortTools } from "openportable"
+import { registerOpenPortTools } from "openportable"
 import { openLocalRuntime } from "../platforms/local/runtime.js"
 
 const runtime = await openLocalRuntime()
@@ -16,7 +16,7 @@ if (!await runtime.store.getSkill("review")) {
 }
 const server = new McpServer(
   { name: "openport-example", version: "1.0.0" },
-  { instructions: `${DEFAULT_CONFIG.instructions}\nUse the review skill for review_item. This example echoes the item; a real app supplies its own handler.` },
+  { instructions: `${runtime.config.instructions}\nUse the review skill for review_item. This example echoes the item; a real app supplies its own handler.` },
 )
 const openport = registerOpenPortTools(server, { store: runtime.store, config: runtime.config })
 openport.registerTool("review_item", {

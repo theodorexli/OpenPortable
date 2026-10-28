@@ -144,6 +144,7 @@ The install skill can write these for you.
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
+| `OPENPORT_CODE_MODE` | unset | `1` / `true`: code mode for clients that call tools from code |
 | `OPENPORT_SESSION_RETENTION_DAYS` | `14` | `_session` retention window |
 | `OPENPORT_WRITE_GUARDS` | `strict` | `strict` or `relaxed` |
 

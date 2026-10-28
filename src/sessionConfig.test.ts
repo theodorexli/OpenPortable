@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { configFromEnv, resolveConfig } from "./config.js"
+import { CODE_MODE_INSTRUCTIONS, configFromEnv, DEFAULT_CONFIG, resolveConfig } from "./config.js"
 import { validateGuardedScope } from "./globalGuard.js"
 import {
   applySessionNoteToBody,
@@ -31,9 +31,24 @@ describe("configFromEnv", () => {
     assert.equal(cfg.sessionRetentionDays, 14)
     assert.equal(cfg.writeGuards, "strict")
   })
+
+  it("parses code mode and picks matching default instructions", () => {
+    assert.equal(configFromEnv({ OPENPORT_CODE_MODE: "1" }).codeMode, true)
+    assert.equal(configFromEnv({ OPENPORT_CODE_MODE: " TRUE " }).codeMode, true)
+    assert.equal(configFromEnv({ OPENPORT_CODE_MODE: "0" }).codeMode, false)
+    assert.equal(configFromEnv({ OPENPORT_CODE_MODE: "maybe" }).codeMode, undefined)
+    assert.equal(resolveConfig().codeMode, false)
+    assert.equal(resolveConfig().instructions, DEFAULT_CONFIG.instructions)
+    assert.equal(resolveConfig({ codeMode: true }).instructions, CODE_MODE_INSTRUCTIONS)
+    assert.equal(resolveConfig(resolveConfig({ codeMode: true })).instructions, CODE_MODE_INSTRUCTIONS)
+    assert.equal(resolveConfig({ codeMode: true, instructions: "custom" }).instructions, "custom")
+  })
 })
 
 describe("session notes", () => {
+  // Writing a note trims entries older than the retention window, so stamps must stay recent.
+  const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString()
+
   it("merges into the current work session line", () => {
     const a = mergeSessionNote(null, "first", { at: "2026-09-17T10:00:00.000Z" })
     const b = mergeSessionNote(a, "second", { at: "2026-09-17T11:00:00.000Z" })
@@ -42,8 +57,8 @@ describe("session notes", () => {
   })
 
   it("new: starts a fresh session line", () => {
-    const body = applySessionNoteToBody("", "alpha", { at: "2026-09-17T10:00:00.000Z" })
-    const next = applySessionNoteToBody(body, "new: beta", { at: "2026-09-17T12:00:00.000Z" })
+    const body = applySessionNoteToBody("", "alpha", { at: hoursAgo(2) })
+    const next = applySessionNoteToBody(body, "new: beta", { at: hoursAgo(1) })
     const entries = next.split("\n").filter((l) => l.startsWith("- `"))
     assert.equal(entries.length, 2)
     assert.match(entries[1]!, /beta/)
@@ -53,17 +68,17 @@ describe("session notes", () => {
     const first = applySessionNoteToBody("", "alpha", {
       sessionId: "sess-a",
       localId: "desk",
-      at: "2026-09-17T10:00:00.000Z",
+      at: hoursAgo(3),
     })
     const both = applySessionNoteToBody(first, "beta", {
       sessionId: "sess-b",
       localId: "other",
-      at: "2026-09-17T11:00:00.000Z",
+      at: hoursAgo(2),
     })
     const rewritten = applySessionNoteToBody(both, "rewrite: alpha-fixed", {
       sessionId: "sess-a",
       localId: "desk",
-      at: "2026-09-17T12:00:00.000Z",
+      at: hoursAgo(1),
     })
     const entries = rewritten.split("\n").filter((l) => l.startsWith("- `"))
     assert.equal(entries.length, 2)

@@ -22,7 +22,8 @@ import { validateGuardedScope } from "./globalGuard.js"
 import { logMcpSessionActivity } from "./sessionContextLog.js"
 import type { OpenPortStore } from "./store.js"
 import { OpenPortSessions, WorkflowGateError } from "./sessions.js"
-import { createSessionTools, gateErrorResult, sessionIdSchema } from "./integration.js"
+import { createSessionTools, sessionIdSchema } from "./integration.js"
+import { toolOutput, toolOutputSchemas } from "./toolOutput.js"
 import {
   WORKFLOW_TTL_MS,
 } from "./workflowGate.js"
@@ -30,12 +31,6 @@ import {
 export type CreateOpenPortServerOptions = {
   store: OpenPortStore
   config?: Partial<OpenPortConfig>
-}
-
-function textResult(payload: unknown) {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
-  }
 }
 
 function errorResult(message: string) {
@@ -51,7 +46,7 @@ export function createOpenPortServer(options: CreateOpenPortServerOptions): McpS
     {
       name: config.name ?? "openport",
       title: config.title ?? "OpenPortable",
-      version: config.version ?? "0.3.2",
+      version: config.version ?? "0.3.3",
       description: "Portable shared memory — scoped load, skills, session handoffs.",
     },
     { instructions: config.instructions },
@@ -64,6 +59,7 @@ export function createOpenPortServer(options: CreateOpenPortServerOptions): McpS
 /** Attach the standalone tools and reusable domain-tool gate to an existing server. */
 export function registerOpenPortTools(server: McpServer, options: CreateOpenPortServerOptions) {
   const config = resolveConfig(options.config)
+  const out = toolOutput(config.codeMode)
   const store = options.store
   const sessions = new OpenPortSessions(store, config)
 
@@ -74,7 +70,7 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
         : await sessions.require(sessionId, { requireInitialized: false })
       return { ok: true as const, session }
     } catch (error) {
-      if (error instanceof WorkflowGateError) return { ok: false as const, result: gateErrorResult(error) }
+      if (error instanceof WorkflowGateError) return { ok: false as const, result: out.gate(error) }
       throw error
     }
   }
@@ -84,9 +80,10 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
     {
       description: "Health check.",
       inputSchema: z.object({}),
+      ...out.schema(toolOutputSchemas.ping),
     },
     async () =>
-      textResult({
+      out.ok({
         ok: true,
         at: new Date().toISOString(),
         workflowTtlHours: WORKFLOW_TTL_MS / 3600000,
@@ -114,8 +111,9 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
           .describe("Prior skillHash — if it matches, skill body is omitted"),
         force: z.boolean().optional().describe("Always return full skill body"),
       }),
+      ...out.schema(toolOutputSchemas.start_session),
     },
-    async (input) => textResult(await sessions.start(input)),
+    async (input) => out.ok(await sessions.start(input)),
   )
 
   server.registerTool(
@@ -123,12 +121,13 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
     {
       description: "Save a final handoff and close this work session. REQUIRED when finishing work; use update_context for checkpoints while continuing.",
       inputSchema: z.object({ session_id: sessionIdSchema, session_note: z.string().min(1) }),
+      ...out.schema(toolOutputSchemas.finish_session),
     },
     async ({ session_id, session_note }) => {
       try {
-        return textResult(await sessions.finish(session_id, session_note))
+        return out.ok(await sessions.finish(session_id, session_note))
       } catch (error) {
-        if (error instanceof WorkflowGateError) return gateErrorResult(error)
+        if (error instanceof WorkflowGateError) return out.gate(error)
         throw error
       }
     },
@@ -157,6 +156,7 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
           .optional()
           .describe("On scoped loads, also include _global (default false)."),
       }),
+      ...out.schema(toolOutputSchemas.get_context),
     },
     async ({ scope, scopes, include_session, include_global }) => {
       const resolved = resolveLoadScopes({
@@ -169,26 +169,30 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
       })
       if (!resolved.ok) return errorResult(resolved.error)
       if (resolved.mode === "index") {
-        return textResult({
-          mode: "index",
-          scopes: await store.listContextScopes(),
-          mustLoad: config.mustLoadScopes,
-          next_action: "Choose a local scope and call start_session({ local: \"<id>\" }) to begin work, or get_context({ scope: \"<id>\" }) to read it. If no local exists, start_session({ local: \"desk\" }) begins setup.",
-        })
+        const index = await store.listContextScopes()
+        const next_action = "Choose a local scope and call start_session({ local: \"<id>\" }) to begin work, or get_context({ scope: \"<id>\" }) to read it. If no local exists, start_session({ local: \"desk\" }) begins setup."
+        // An output schema gives each field one type, so code mode moves scope metadata to `index`.
+        return out.ok(out.codeMode
+          ? { mode: "index", scopes: index.map(({ id }) => id), index, mustLoad: config.mustLoadScopes, next_action }
+          : { mode: "index", scopes: index, mustLoad: config.mustLoadScopes, next_action })
       }
       const data = await store.getContextForScopes(resolved.scopes)
       const localBody = data.local[0]?.body
       const localId = data.local[0]?.id
       const needsBootstrap = Boolean(localId) && isSeedLocalBody(localBody)
-      return textResult({
+      const next_action = needsBootstrap
+        ? onboardingDirective(localId!)
+        : localId
+          ? resumeDirective(localId)
+          : undefined
+      if (out.codeMode) {
+        return out.ok({ mode: "load", mustLoad: config.mustLoadScopes, scopes: resolved.scopes, needsBootstrap, next_action, ...data })
+      }
+      return out.ok({
         mustLoad: config.mustLoadScopes,
         scopes: resolved.scopes,
         needsBootstrap,
-        next_action: needsBootstrap
-          ? onboardingDirective(localId!)
-          : localId
-            ? resumeDirective(localId)
-            : undefined,
+        next_action,
         hint: "Prefer start_session({ local }) at session start — one call loads memory and binds the right skill.",
         ...data,
       })
@@ -210,12 +214,13 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
           .describe("Prior skillHash — if it matches, body is omitted"),
         force: z.boolean().optional().describe("Always return full body"),
       }),
+      ...out.schema(toolOutputSchemas.learn_workflow),
     },
     async (input) => {
       try {
-        return textResult(await sessions.learn(input))
+        return out.ok(await sessions.learn(input))
       } catch (error) {
-        if (error instanceof WorkflowGateError) return gateErrorResult(error)
+        if (error instanceof WorkflowGateError) return out.gate(error)
         throw error
       }
     },
@@ -226,14 +231,15 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
     {
       description: "Read a markdown doc from memory (getting-started, tools, context, …).",
       inputSchema: z.object({ doc: z.string() }),
+      ...out.schema(toolOutputSchemas.get_doc),
     },
     async ({ doc }) => {
       if (doc === "*" || doc === "index") {
-        return textResult({ docs: await store.listDocs() })
+        return out.ok({ docs: await store.listDocs() })
       }
       const row = await store.getDoc(doc)
       if (!row) return errorResult(`Doc "${doc}" not found`)
-      return textResult({ doc: row })
+      return out.ok({ doc: row })
     },
   )
 
@@ -247,12 +253,13 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
         body: z.string(),
         mode: z.enum(["replace", "append"]).optional(),
       }),
+      ...out.schema(toolOutputSchemas.update_doc),
     },
     async ({ doc, body, mode, session_id }) => {
       const access = await gate(session_id)
       if (!access.ok) return access.result
       const row = await store.updateDoc(doc, body, mode ?? "replace")
-      return textResult({ ok: true, doc: row })
+      return out.ok({ ok: true, doc: row })
     },
   )
 
@@ -261,14 +268,15 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
     {
       description: "Read an instruction skill by id, or list with skill=\"*\".",
       inputSchema: z.object({ skill: z.string() }),
+      ...out.schema(toolOutputSchemas.get_skill),
     },
     async ({ skill }) => {
       if (skill === "*" || skill === "index") {
-        return textResult({ skills: await store.listSkills() })
+        return out.ok({ skills: await store.listSkills() })
       }
       const row = await store.getSkill(skill)
       if (!row) return errorResult(`Skill "${skill}" not found`)
-      return textResult({ skill: row })
+      return out.ok({ skill: row })
     },
   )
 
@@ -281,10 +289,11 @@ export function registerOpenPortTools(server: McpServer, options: CreateOpenPort
         body: z.string(),
         mode: z.enum(["replace", "append"]).optional(),
       }),
+      ...out.schema(toolOutputSchemas.update_skill),
     },
     async ({ skill, body, mode }) => {
       const row = await store.updateSkill(skill, body, mode ?? "replace")
-      return textResult({ ok: true, skill: row })
+      return out.ok({ ok: true, skill: row })
     },
   )
 
@@ -373,6 +382,7 @@ This saves the handoff and closes the session. Use update_context with empty con
         mode: z.enum(["replace", "append"]).optional(),
         session_note: z.string().optional(),
       }),
+      ...out.schema(toolOutputSchemas.update_context),
     },
     async ({ scope, context, mode, session_note, session_id }) => {
       const id = scope.trim()
@@ -444,14 +454,14 @@ This saves the handoff and closes the session. Use update_context with empty con
           })
         } catch (error) {
           if (noteOnly) throw error
-          return textResult({
+          return out.ok({
             ok: true, noteOnly, ...result, handoff_saved: false,
             next_action: "Memory was saved, but the handoff failed. Do not repeat the memory write. Retry update_context with the same session_id, empty context, and session_note only.",
           })
         }
       }
 
-      return textResult({ ok: true, noteOnly, ...result })
+      return out.ok({ ok: true, noteOnly, ...result })
     },
   )
 
@@ -463,6 +473,7 @@ This saves the handoff and closes the session. Use update_context with empty con
         session_id: sessionIdSchema,
         scope: z.string().default(SESSION_CONTEXT_ID),
       }),
+      ...out.schema(toolOutputSchemas.collapse_context),
     },
     async ({ scope, session_id }) => {
       const id = scope.trim() || SESSION_CONTEXT_ID
@@ -473,14 +484,14 @@ This saves the handoff and closes the session. Use update_context with empty con
         const row = await store.getContextRow(id)
         if (!row) return errorResult(`Scope "${id}" not found`)
         const result = collapseContextBody(row.body, config.sessionRetentionDays, { scope: id })
-        if (result.collapsed === row.body) return textResult({ ok: true, scope: id, ...result })
+        if (result.collapsed === row.body) return out.ok({ ok: true, scope: id, ...result })
         if (await store.compareAndSwapContext(id, row.body, result.collapsed)) {
-          return textResult({ ok: true, scope: id, ...result })
+          return out.ok({ ok: true, scope: id, ...result })
         }
       }
       return errorResult("Context changed concurrently; retry collapse_context.")
     },
   )
 
-  return createSessionTools(server, sessions)
+  return createSessionTools(server, sessions, out)
 }

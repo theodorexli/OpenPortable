@@ -214,6 +214,7 @@ Filenames are percent-encoded so ids like `team/review` and `team_review` stay d
 |----------|---------|---------|
 | `PORT` / `OPENPORT_PORT` | `8787` | HTTP listen port |
 | `OPENPORT_DB` | `platforms/local/data/openport.sqlite` | SQLite file path |
+| `OPENPORT_CODE_MODE` | unset | `1` / `true`: code mode, same as `openportable --code-mode` |
 | `OPENPORT_SESSION_RETENTION_DAYS` | `14` | `_session` retention window |
 | `OPENPORT_WRITE_GUARDS` | `strict` | `strict` or `relaxed` |
 | `OPENPORT_SEED` | unset | Set to `1` / `true` to reseed on start |

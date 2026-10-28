@@ -3,20 +3,12 @@ import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/proto
 import type { CallToolResult, ServerNotification, ServerRequest, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js"
 import { z } from "zod"
 import { OpenPortSessions, WorkflowGateError, type WorkflowRequirement } from "./sessions.js"
+import type { ToolOutput } from "./toolOutput.js"
 import type { WorkflowSession } from "./workflowGate.js"
 
 // Optional at validation time so a missing ID receives actionable gate recovery.
 export const sessionIdSchema = z.string().optional()
   .describe("session_id returned by start_session. If missing/expired, call start_session and follow next_action before retrying.")
-
-export function gateErrorResult(error: WorkflowGateError): CallToolResult {
-  return {
-    isError: true,
-    content: [{ type: "text", text: JSON.stringify({
-      ok: false, code: error.code, error: error.message, next_action: error.next_action,
-    }, null, 2) }],
-  }
-}
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>
 type Args<Shape extends z.ZodRawShape> = z.output<z.ZodObject<Shape>>
@@ -24,6 +16,8 @@ type Args<Shape extends z.ZodRawShape> = z.output<z.ZodObject<Shape>>
 export type GatedToolOptions<Shape extends z.ZodRawShape> = {
   description: string
   inputSchema: z.ZodObject<Shape>
+  /** Declared to clients in code mode; the handler then returns matching structuredContent. */
+  outputSchema?: z.AnyZodObject
   annotations?: ToolAnnotations
   workflow: WorkflowRequirement | ((args: Args<Shape>) => WorkflowRequirement)
   /** Optional automatic, caller-authored note after successful execution. */
@@ -31,7 +25,7 @@ export type GatedToolOptions<Shape extends z.ZodRawShape> = {
 }
 
 /** Register domain tools on an existing MCP server with OpenPortable prerequisites. */
-export function createSessionTools(server: McpServer, sessions: OpenPortSessions) {
+export function createSessionTools(server: McpServer, sessions: OpenPortSessions, out: ToolOutput) {
   return {
     sessions,
     registerTool<Shape extends z.ZodRawShape>(
@@ -43,6 +37,7 @@ export function createSessionTools(server: McpServer, sessions: OpenPortSessions
       return server.registerTool(name, {
         description: `${options.description} Requires an OpenPortable session; follow next_action if gated.`,
         inputSchema: options.inputSchema.extend({ session_id: sessionIdSchema }),
+        ...(options.outputSchema ? out.schema(options.outputSchema) : {}),
         annotations: options.annotations,
       }, async (input, extra) => {
         const sessionId = (input as { session_id?: string }).session_id
@@ -55,7 +50,7 @@ export function createSessionTools(server: McpServer, sessions: OpenPortSessions
           session = await sessions.require(sessionId,
             typeof options.workflow === "function" ? options.workflow(args) : options.workflow)
         } catch (error) {
-          if (error instanceof WorkflowGateError) return gateErrorResult(error)
+          if (error instanceof WorkflowGateError) return out.gate(error)
           throw error
         }
         const result = await handler(args, session, extra)

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [0.3.3] — 2026-10-28
+
+- Add opt-in code mode for clients that call MCP tools from code (`openportable --code-mode`, `OPENPORT_CODE_MODE=1`, or `config.codeMode`). Tools declare output schemas and return `structuredContent` with compact JSON text, instructions become code-first, and gate errors are compact JSON. Bare `get_context()` lists scope ids in `scopes` and metadata in `index`. Default mode is unchanged.
+- Gated domain tools accept an `outputSchema`, declared to clients in code mode
+- README leads with use cases and an at-a-glance summary
+- A checkout's typecheck no longer conflicts with a local `dist/` build: `openportable` resolves to `src/` through tsconfig paths, so the embedding example also runs without building
+- Session-note tests use recent timestamps, so retention trimming no longer fails them as the calendar advances
+
 ## [0.3.2] — 2026-09-25
 
 - Scoped loads include configured shared scopes, which do not count as locals. A scope shorthand still allows one local. An explicit `scopes` list may name several locals.

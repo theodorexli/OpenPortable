@@ -59,6 +59,7 @@ export async function openLocalRuntime(opts?: {
   const store = new OpenPortStore(sql)
   const config = resolveConfig(
     configFromEnv({
+      OPENPORT_CODE_MODE: process.env.OPENPORT_CODE_MODE,
       OPENPORT_SESSION_RETENTION_DAYS: process.env.OPENPORT_SESSION_RETENTION_DAYS,
       OPENPORT_WRITE_GUARDS: process.env.OPENPORT_WRITE_GUARDS,
     }),

@@ -6,13 +6,17 @@
  *   openportable stdio
  *   openportable serve      # HTTP MCP on :8787
  *   openportable http
+ *   openportable --code-mode   # with any of the above: for clients that call tools from code
  */
 import { spawn } from "node:child_process"
 import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const mode = (process.argv[2] ?? "stdio").toLowerCase()
+const args = process.argv.slice(2)
+if (args.includes("--code-mode")) process.env.OPENPORT_CODE_MODE = "1"
+const [command = "stdio", ...rest] = args.filter((arg) => arg !== "--code-mode")
+const mode = command.toLowerCase()
 
 const entries = {
   stdio: "platforms/local/stdio.ts",
@@ -22,15 +26,17 @@ const entries = {
 
 const rel = entries[mode]
 if (!rel) {
-  console.error(`Usage: openportable [stdio|serve|http]
+  console.error(`Usage: openportable [stdio|serve|http] [--code-mode]
 
   stdio (default)  MCP over stdio — Cursor / Claude / Codex
   serve | http     MCP over HTTP at http://127.0.0.1:8787/mcp
+  --code-mode      Typed tool results for clients that call tools from code
 
 Env:
   OPENPORT_DB                 SQLite path (default: ./platforms/local/data when cloned,
                               ~/.openport/openport.sqlite when installed via npm/npx)
   OPENPORT_SEED=1             Re-apply seed markdown
+  OPENPORT_CODE_MODE=1        Same as --code-mode
   OPENPORT_SESSION_RETENTION_DAYS
   OPENPORT_WRITE_GUARDS       strict | relaxed
 `)
@@ -47,7 +53,7 @@ async function runWithTsxRegister() {
 }
 
 function runWithTsxCli() {
-  const child = spawn(process.execPath, [tsxCli, entry, ...process.argv.slice(3)], {
+  const child = spawn(process.execPath, [tsxCli, entry, ...rest], {
     stdio: "inherit",
     env: process.env,
     cwd: root,

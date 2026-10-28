@@ -1,6 +1,6 @@
 {
   "name": "openportable",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Portable MCP memory, skills, workflow gates, and session handoffs across AI clients.",
   "license": "MIT",
   "type": "module",
